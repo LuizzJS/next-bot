@@ -1,0 +1,4 @@
+node_modules/
+next_auth/
+next/logs/
+next/.env
