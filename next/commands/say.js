@@ -1,11 +1,12 @@
 export default {
   command: 'say',
-  aliases: ['s'],
   args: true,
+  description: '',
   groupOnly: false,
+  adminOnly: false,
+  ownerOnly: false,
   commandUsage: 'say <message>',
   execute: async function ({ socket, message, args }) {
-    const textToSend = args.join(' ');
-    await socket.sendMessage(message.key.remoteJid, { text: textToSend });
+    await socket.sendMessage(message.key.remoteJid, args.split('')[1]);
   },
 };

@@ -19,8 +19,7 @@ const startSocket = async () => {
   });
 
   socket.commands = await loadCommands();
-  socket.pg = await stabilishConnection();
-
+  socket.db = await stabilishConnection();
   socket.ev.on('creds.update', saveCredentials);
   socket.ev.on('groups.update', async (upd) => groupEvent({ update: upd }));
   socket.ev.on('connection.update', async (upd) =>

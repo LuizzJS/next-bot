@@ -1,18 +1,22 @@
-import { Client } from 'pg';
+import mongoose from 'mongoose';
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(process.cwd(), 'next', '.env') });
 
 const stabilishConnection = async () => {
-  const { PG_DATABASE, PG_USER, PG_PASSWORD, PG_PORT } = process.env;
-  const client = new Client({
-    user: PG_USER,
-    host: 'localhost',
-    database: PG_DATABASE,
-    password: PG_PASSWORD,
-    port: PG_PORT,
-  });
+  try {
+    const connection = await mongoose.connect(process.env.MG_URL);
 
-  await client.connect();
+    console.log(
+      `✅ Conectado ao MongoDB com sucesso: "${connection.connection.name}" em "${connection.connection.host}:${connection.connection.port}"`
+    );
 
-  return client;
+    return connection;
+  } catch (error) {
+    console.error(`❌ Erro ao conectar ao MongoDB: ${error.message}`);
+    throw new Error('Falha ao conectar ao MongoDB');
+  }
 };
 
 export default stabilishConnection;
