@@ -11,8 +11,6 @@ const stabilishConnection = async () => {
     console.log(
       `✅ Conectado ao MongoDB com sucesso: "${connection.connection.name}" em "${connection.connection.host}:${connection.connection.port}"`
     );
-
-    return connection;
   } catch (error) {
     console.error(`❌ Erro ao conectar ao MongoDB: ${error.message}`);
     throw new Error('Falha ao conectar ao MongoDB');

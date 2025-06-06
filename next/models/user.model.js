@@ -38,6 +38,10 @@ const userSchema = new mongoose.Schema(
             type: Number,
             default: 0,
           },
+          originalId: {
+            type: String,
+            default: '',
+          },
         },
         { _id: false }
       ),
@@ -64,9 +68,13 @@ const userSchema = new mongoose.Schema(
         enum: ['owner', 'admin', 'user'],
         default: 'user',
       },
+      autoSticker: {
+        type: Boolean,
+        default: true,
+      },
     },
   },
-  { timestamps: true, _id: false }
+  { timestamps: true }
 );
 
 export default mongoose.model('User', userSchema);

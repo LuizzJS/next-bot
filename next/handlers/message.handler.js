@@ -1,136 +1,122 @@
+import { imageHandler } from './image.handler.js';
+
 export const messageHandler = async ({ socket, update }) => {
   const { messages, type } = update;
-  if (type !== 'notify') return;
-
+  if (type !== 'notify' || !messages?.length) return;
   for (const msg of messages) {
     try {
-      const from = msg.key.remoteJid;
+      const from = msg.key?.remoteJid;
+      if (!from || from.endsWith('@newsletter') || from.endsWith('@broadcast'))
+        continue;
       const isGroup = from.endsWith('@g.us');
-      const senderId = msg.key.participant || msg.key.remoteJid;
-      const senderName = msg.pushName || senderId;
-      const phoneNumber = senderId.replace('@s.whatsapp.net', '');
-
-      const messageContent =
+      const senderId = msg.key?.participant || msg.key?.remoteJid;
+      const senderName = msg.pushName || senderId || 'Desconhecido';
+      const phoneNumber = senderId?.replace('@s.whatsapp.net', '');
+      if (!phoneNumber) continue;
+      let avatar = null;
+      try {
+        avatar = await socket.profilePictureUrl(senderId, { type: 'image' });
+      } catch {}
+      const newUserData = {
+        name: senderName,
+        phone: phoneNumber,
+        authorized: false,
+        stickers: 0,
+        marriage: null,
+        avatar,
+        config: {
+          role: 'user',
+          ratio: 'original',
+          premium: 'None',
+          language: 'pt-BR',
+        },
+        data: {},
+      };
+      let messageContent =
         msg.message?.conversation ||
         msg.message?.extendedTextMessage?.text ||
         msg.message?.imageMessage?.caption ||
         msg.message?.videoMessage?.caption ||
         '';
-
-      if (!messageContent) continue;
-
-      let user = await socket.db.findOne({ phone: phoneNumber });
-
-      let avatar = null;
-      try {
-        avatar = await socket.profilePictureUrl(senderId, 'image');
-      } catch {
-        avatar = null;
-      }
-
+      const isImage = !!msg.message?.imageMessage;
+      const isVideo = !!msg.message?.videoMessage;
+      if (!messageContent.trim() && !isImage && !isVideo) continue;
+      let user = await socket.db.User.findOne({ phone: phoneNumber });
       if (!user) {
-        const newUser = {
-          name: senderName || 'Desconhecido',
-          phone: phoneNumber,
-          authorized: false,
-          stickers: 0,
-          marriage: null,
-          avatar,
-          config: {
-            role: 'user',
-            ratio: 'original',
-            premium: 'None',
-            language: 'pt-BR',
-          },
-          data: [],
-        };
-
-        if (isGroup) {
-          newUser.data.push({
-            group: from,
-            groupName:
-              msg?.message?.groupInviteMessage?.groupName || 'Desconhecido',
-          });
-        }
-
-        user = await socket.db.create(newUser);
-        console.log(`[DB] 🆕 Novo usuário salvo: ${phoneNumber}`);
+        user = new socket.db.User(newUserData);
       } else {
         const updateData = {};
         if (user.name !== senderName) updateData.name = senderName;
         if (user.avatar !== avatar) updateData.avatar = avatar;
-
-        if (Object.keys(updateData).length > 0) {
-          await socket.db.updateOne(
+        if (Object.keys(updateData).length) {
+          await socket.db.User.updateOne(
             { phone: phoneNumber },
             { $set: updateData }
           );
-          console.log(`[DB] ✏️ Usuário atualizado: ${phoneNumber}`, updateData);
+          user = await socket.db.User.findOne({ phone: phoneNumber });
         }
       }
-
-      const [rawCommand, ...args] = messageContent.trim().split(/\s+/);
+      if (isImage || isVideo) {
+        await imageHandler({ socket, msg });
+        continue;
+      }
+      if (isGroup) {
+        const groupKey = from.replace(/\./g, '_');
+        if (!user.data) user.data = new Map();
+        const current = user.data.get(groupKey) || {
+          mensagens: 0,
+          originalId: from,
+        };
+        current.mensagens += 1;
+        user.data.set(groupKey, current);
+      }
+      await user.save();
+      const [rawCommand, ...args] = messageContent.trim().split(/\s+/g);
       const commandName = rawCommand.toLowerCase();
-
-      if (!socket.commands.has(commandName)) continue;
-      if (msg.key.fromMe) continue;
-
+      if (!socket.commands.has(commandName) || msg.key.fromMe) continue;
       const command = socket.commands.get(commandName);
-
       if (command.groupOnly && !isGroup) {
         await socket.sendMessage(from, {
           text: '🚫 Esse comando só pode ser usado em grupos.',
         });
-        return;
+        continue;
       }
-
-      let metadata = null;
       let isSenderGroupAdmin = false;
-
       if (isGroup) {
-        metadata = await socket.groupMetadata(from);
+        let metadata;
+        try {
+          metadata = await socket.groupMetadata(from);
+        } catch (e) {
+          console.warn(`Falha ao obter metadata do grupo: ${from}`);
+        }
         const participants = metadata?.participants || [];
         const senderParticipant = participants.find((p) => p.id === senderId);
-        isSenderGroupAdmin =
-          senderParticipant?.admin === 'admin' ||
-          senderParticipant?.admin === 'superadmin';
+        isSenderGroupAdmin = ['admin', 'superadmin'].includes(
+          senderParticipant?.admin
+        );
       }
-
       if (command.adminOnly && isGroup && !isSenderGroupAdmin) {
         await socket.sendMessage(from, {
           text: '🚫 Você precisa ser *administrador do grupo* para usar esse comando.',
         });
-        return;
+        continue;
       }
-
       if (command.ownerOnly) {
-        const isBotAdmin =
-          user?.config?.role === 'owner' || user?.config?.role === 'admin';
-
-        if (!isBotAdmin) {
+        const isOwner = ['owner', 'admin'].includes(user?.config?.role);
+        if (!isOwner) {
           await socket.sendMessage(from, {
             text: '🚫 Esse comando é exclusivo para *administradores do bot*.',
           });
-          return;
+          continue;
         }
       }
-
       await command.execute({ socket, message: msg, args });
-
-      console.log(
-        `[COMMAND] ${
-          isGroup ? 'GROUP' : 'PRIVATE'
-        } - ${senderName} (${from}) executou: ${commandName}`
-      );
     } catch (err) {
-      console.error('❌ [COMMAND ERROR]:', err);
+      console.error('❌ [COMMAND] Error:', err?.stack || err);
       try {
-        const from = msg?.key?.remoteJid;
-        if (from) {
-          await socket.sendMessage(from, {
-            text: '❌ Ocorreu um erro ao processar o comando. Tente novamente mais tarde.',
-          });
-        }
+        await socket.sendMessage(msg.key?.remoteJid, {
+          text: '❌ Ocorreu um erro ao processar o comando. Tente novamente mais tarde.',
+        });
       } catch {}
     }
   }
