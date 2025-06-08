@@ -2,3 +2,4 @@ node_modules/
 next_auth/
 next/logs/
 next/.env
+next/database/query.js

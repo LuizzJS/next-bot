@@ -15,19 +15,17 @@ const startSocket = async () => {
   const socket = baileys.makeWASocket({
     auth: state,
     logger,
-    browser: baileys.Browsers.ubuntu('Desktop'),
+    browser: baileys.Browsers.macOS('Desktop'),
     markOnlineOnConnect: false,
     qrTimeout: 0,
   });
 
+  socket.awaitingRatioResponse = new Map();
   socket.downloadMedia = baileys.downloadMediaMessage;
   socket.commands = await loadCommands();
   socket.db = { User, Marriage };
 
-  await stabilishConnection();
-
   socket.ev.on('creds.update', saveCredentials);
-
   socket.ev.on('groups.update', async (upd) => {
     try {
       await groupEvent({ update: upd });
@@ -37,15 +35,9 @@ const startSocket = async () => {
   });
 
   socket.ev.on('connection.update', async (upd) => {
-    try {
-      if (upd.connection === 'open') {
-        restartAttempts = 0;
-      }
-      await update({ update: upd, callback: startSocket });
-    } catch (err) {
-      logger.error('❌ Erro em connection update:', err?.stack || err);
-    }
+    await update({ update: upd, callback: startSocket });
   });
+  await stabilishConnection();
 
   socket.ev.on('messages.upsert', async (upd) => {
     try {

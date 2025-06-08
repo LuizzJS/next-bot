@@ -12,17 +12,15 @@ const streams = [
       write: (msg) => {
         try {
           const parsed = JSON.parse(msg);
-          if (parsed.level >= 50) {
-            console.error(parsed.msg);
-          } else if (parsed.level >= 40) {
-            console.error(parsed.msg);
-          } else if (parsed.level >= 30) {
-            console.warn(parsed.msg);
-          } else {
-            console.log(parsed.msg);
-          }
+          const { level, msg: message } = parsed;
+
+          if (level >= 50) console.error(`🔥 [FATAL] ${message}`);
+          else if (level >= 40) console.error(`❌ | ${message}`);
+          else if (level >= 30) console.warn(`⚠️ | ${message}`);
+          else if (level >= 20) console.debug(`🐛 | ${message}`);
+          else console.log(`📘 | ${message}`);
         } catch {
-          console.log(msg);
+          console.warn(`🟡 [RAW] ${msg.trim()}`);
         }
       },
     },
@@ -34,7 +32,7 @@ const streams = [
 
 const logger = pino(
   {
-    level: 'info',
+    level: 'debug',
     timestamp: () => `,"time":"${new Date().toISOString()}"`,
   },
   pino.multistream(streams)
@@ -72,7 +70,7 @@ export const update = async ({ update, callback }) => {
         'Motivo desconhecido.';
       logger.error(
         { statusCode, error: lastDisconnect?.error },
-        `❌ Conexão encerrada por outro motivo: ${errorMsg}`
+        `❌ Conexão encerrada: ${errorMsg}`
       );
     }
     return;
