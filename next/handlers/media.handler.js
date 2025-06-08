@@ -141,7 +141,7 @@ export const mediaHandler = async ({ socket, msg: message }) => {
     if (fileType.mime.startsWith('image/')) {
       const stickerBuffer = await new Sticker(mediaBuffer, {
         pack: '🅽 Made by',
-        author: 'NextBot',
+        author: 'NextBOT',
         type: ratio === '1:1' ? StickerTypes.DEFAULT : StickerTypes.FULL,
         quality: 60,
       }).toBuffer();
@@ -181,7 +181,7 @@ export const mediaHandler = async ({ socket, msg: message }) => {
 
       const sticker = await new Sticker(processedBuffer, {
         pack: '🅽 Made by',
-        author: 'NextBot',
+        author: 'NextBOT',
         quality: 50,
         type: ratio === '1:1' ? StickerTypes.DEFAULT : StickerTypes.FULL,
       }).toBuffer();

@@ -37,6 +37,7 @@ const startSocket = async () => {
   socket.ev.on('connection.update', async (upd) => {
     await update({ update: upd, callback: startSocket });
   });
+
   await stabilishConnection();
 
   socket.ev.on('messages.upsert', async (upd) => {

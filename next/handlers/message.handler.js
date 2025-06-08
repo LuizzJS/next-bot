@@ -4,6 +4,11 @@ export const messageHandler = async ({ socket, update }) => {
   const { messages, type } = update;
   if (type !== 'notify' || !messages?.length) return;
   for (const msg of messages) {
+    const isFromMe =
+      msg.key.fromMe ||
+      (msg.key.participant || msg.key.remoteJid) === socket.user?.id;
+    if (isFromMe) continue;
+
     try {
       const from = msg.key?.remoteJid;
       if (!from || from.endsWith('@newsletter') || from.endsWith('@broadcast'))
@@ -135,7 +140,7 @@ export const messageHandler = async ({ socket, update }) => {
 
       const [rawCommand, ...args] = messageContent.trim().split(/\s+/g);
       const commandName = rawCommand.toLowerCase();
-      if (!socket.commands.has(commandName) || msg.key.fromMe) continue;
+      if (!socket.commands.has(commandName)) continue;
 
       const command = socket.commands.get(commandName);
 
