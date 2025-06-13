@@ -1,0 +1,22 @@
+{
+  "name": "nextbot",
+  "version": "1.0.0",
+  "main": "next.js",
+  "type": "module",
+  "scripts": {
+    "start": "node ./next.js"
+  },
+  "keywords": [],
+  "author": "Luna Developer",
+  "license": "ISC",
+  "description": "A simple WhatsApp bot!",
+  "dependencies": {
+    "@google/genai": "latest",
+    "@open-wa/wa-automate": "latest",
+    "axios": "latest",
+    "chalk": "latest",
+    "dotenv": "latest",
+    "mongoose": "latest",
+    "nekos-best.js": "latest"
+  }
+}
