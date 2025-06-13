@@ -15,8 +15,10 @@
     "@open-wa/wa-automate": "latest",
     "axios": "latest",
     "chalk": "latest",
+    "chromium": "^3.0.3",
     "dotenv": "latest",
     "mongoose": "latest",
-    "nekos-best.js": "latest"
+    "nekos-best.js": "latest",
+    "playwright": "^1.53.0"
   }
 }

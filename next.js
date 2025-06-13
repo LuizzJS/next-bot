@@ -16,6 +16,7 @@ import messageHandler from './next/handlers/message.handler.js';
 
 const start = async (client) => {
   try {
+    console.log(`⚙️ NextBOT iniciado com sucesso!`);
     client.connect = connection;
     client.commands = new Map();
     client.loadCommands = commandsLoader;
@@ -46,6 +47,7 @@ const start = async (client) => {
 
 open_wa
   .create({
+    executablePath: process.env.CHROME_PATH || '/usr/bin/chromium',
     sessionId: 'next_auth',
     multiDevice: true,
     useChrome: true,
