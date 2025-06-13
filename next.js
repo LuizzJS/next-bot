@@ -47,7 +47,7 @@ const start = async (client) => {
 
 open_wa
   .create({
-    executablePath: process.env.CHROME_PATH || '/usr/bin/chromium',
+    executablePath: process.env.CHROME_PATH || '/usr/bin/chrome',
     sessionId: 'next_auth',
     multiDevice: true,
     useChrome: true,
