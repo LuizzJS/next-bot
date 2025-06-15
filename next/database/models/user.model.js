@@ -51,13 +51,13 @@ const userSchema = new mongoose.Schema(
       },
       language: {
         type: String,
-        enum: ['pt_br', 'en_us', 'es_es', 'fr_fr', 'it_it'],
-        default: 'pt_br',
+        enum: ['pt', 'en', 'fr', 'es', 'it'],
+        default: 'pt',
       },
       premium: {
         type: String,
-        enum: ['Platinum', 'Diamond', 'Gold', 'None'],
-        default: 'None',
+        enum: ['platinum', 'diamond', 'gold', 'none'],
+        default: 'none',
       },
       role: {
         type: String,

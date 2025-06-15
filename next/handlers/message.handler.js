@@ -58,9 +58,8 @@ const message_handler = async ({ message, client }) => {
     }
 
     const user_role = user.config?.role || 'user';
-    const user_lang = user.config?.language || 'pt_br';
-    const user_messages = client.messages[user_lang] || {};
-    const is_bot_owner = user_role === 'owner';
+    const user_lang = user.config?.language?.substring(0, 2) || 'pt';
+    const is_bot_owner = user_role === 'owner' || user_role === 'admin';
 
     const is_admin = is_group
       ? (await client.getGroupAdmins(message.chatId)).includes(sender.id)
@@ -80,39 +79,49 @@ const message_handler = async ({ message, client }) => {
     const command = client.commands.get(command_name.toLowerCase());
     if (!command) return;
 
+    const placeholders = {
+      '{user}': `@${user_phone}`,
+      '{example}': command.command_example || '',
+    };
+
+    // Função para substituir placeholders
+    const formatMsg = (template) => {
+      let msg = template;
+      for (const [key, value] of Object.entries(placeholders)) {
+        msg = msg.replace(new RegExp(key, 'g'), value);
+      }
+      return msg;
+    };
+
     // Verificação de argumentos
     if (command.args_length && args.length < command.args_length) {
-      const msg =
-        user_messages.missing_args
-          ?.replace('[user]', `@${user_phone}`)
-          ?.replace('[example]', command.command_example || '') ||
-        'Argumentos insuficientes.';
+      const msg = client.messages?.restrictions?.missing_args?.[user_lang]
+        ? formatMsg(client.messages.restrictions.missing_args[user_lang])
+        : 'Argumentos insuficientes.';
 
       return client.sendTextWithMentions(message.chatId, msg);
     }
 
     // Verificações de permissão
     if (command.group_only && !is_group) {
-      return client.sendTextWithMentions(
-        message.chatId,
-        user_messages.group_only || 'Este comando só pode ser usado em grupos.'
-      );
+      const msg = client.messages?.restrictions?.group_only?.[user_lang]
+        ? formatMsg(client.messages.restrictions.group_only[user_lang])
+        : 'Este comando só pode ser usado em grupos.';
+      return client.sendTextWithMentions(message.chatId, msg);
     }
 
     if (command.bot_owner_only && !is_bot_owner) {
-      return client.sendTextWithMentions(
-        message.chatId,
-        user_messages.owner_only ||
-          'Apenas o dono do bot pode usar este comando.'
-      );
+      const msg = client.messages?.restrictions?.owner_only?.[user_lang]
+        ? formatMsg(client.messages.restrictions.owner_only[user_lang])
+        : 'Apenas o dono do bot pode usar este comando.';
+      return client.sendTextWithMentions(message.chatId, msg);
     }
 
     if (command.admin_only && !is_admin) {
-      return client.sendTextWithMentions(
-        message.chatId,
-        user_messages.admin_only ||
-          'Você precisa ser administrador para usar este comando.'
-      );
+      const msg = client.messages?.restrictions?.admin_only?.[user_lang]
+        ? formatMsg(client.messages.restrictions.admin_only[user_lang])
+        : 'Você precisa ser administrador para usar este comando.';
+      return client.sendTextWithMentions(message.chatId, msg);
     }
 
     // Executa o comando
@@ -130,10 +139,14 @@ const message_handler = async ({ message, client }) => {
   } catch (error) {
     console.error('❌ Erro no message_handler:', error);
     await client.react(message.id, '❎');
-    await client.sendText(
-      message.chatId,
-      '❌ Ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde.'
-    );
+    const user_lang = message?.user?.config?.language?.substring(0, 2) || 'pt';
+    const msg = client.messages?.errors?.unknownError?.[user_lang]
+      ? client.messages.errors.unknownError[user_lang].replace(
+          '{user}',
+          `@${message.sender?.id || message.author || message.from}`
+        )
+      : '❌ Ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde.';
+    await client.sendText(message.chatId, msg);
   }
 };
 

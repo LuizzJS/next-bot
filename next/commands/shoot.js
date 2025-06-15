@@ -16,7 +16,6 @@ export default {
   args_length: 1,
   command_example: 'shoot @luiz',
   group_only: true,
-
   execute: async ({ client, message, args }) => {
     const tempId = uuidv4();
 

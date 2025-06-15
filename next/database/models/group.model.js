@@ -22,6 +22,10 @@ const GroupSchema = new mongoose.Schema(
       type: String, // Número de quem adicionou o bot (ex: '5591...@c.us')
       default: null,
     },
+    prefix: {
+      type: String,
+      default: '/',
+    },
   },
   {
     versionKey: false, // Remove "__v" do documento

@@ -18,6 +18,7 @@ const groupHandler = async ({ event, client }) => {
       name: groupData.name,
       inviteLink,
       addedBy: event.author,
+      prefix: client.prefix,
     });
 
     console.log(`✅ Grupo registrado: ${groupData.name} (${groupData.id})`);

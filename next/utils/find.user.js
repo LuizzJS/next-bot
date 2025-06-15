@@ -17,8 +17,8 @@ export const findUser = async ({ chat, input, client, message }) => {
   const normalizedInput = input.toLowerCase();
   for (const participant of participants) {
     const contact = await client.getContact(participant.id);
-    const name = contact.pushname?.toLowerCase() || '';
-    const formattedName = contact.name?.toLowerCase() || '';
+    const name = contact?.pushname?.toLowerCase() || '';
+    const formattedName = contact?.name?.toLowerCase() || '';
     if (
       name.includes(normalizedInput) ||
       formattedName.includes(normalizedInput)

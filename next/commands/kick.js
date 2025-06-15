@@ -19,11 +19,27 @@ export default {
 
   execute: async ({ client, message, args }) => {
     const tempId = uuidv4();
-
     let gifPath = '';
     let mp4Path = '';
+
+    // Helper para formatar mensagens com placeholders
+    const formatMsg = (template, data = {}) => {
+      let msg = template;
+      for (const [key, value] of Object.entries(data)) {
+        msg = msg.replace(new RegExp(key, 'g'), value);
+      }
+      return msg;
+    };
+
     try {
       const chat = await client.getChatById(message.chatId);
+      const sender = await client.getContact(message.sender.id);
+      const senderPhone = sender.id.replace('@c.us', '');
+
+      // Get user language preference
+      const { User } = client.db;
+      const user = await User.findOne({ phone: senderPhone });
+      const user_lang = user?.config?.language?.substring(0, 2) || 'pt';
 
       const targetId = await client.findUser({
         chat,
@@ -33,11 +49,17 @@ export default {
       });
 
       if (!targetId) {
-        return client.sendText(message.chatId, '❌ Usuário não encontrado.');
+        const msg = client.messages.errors?.userNotFound?.[user_lang]
+          ? formatMsg(client.messages.errors.userNotFound[user_lang], {
+              '{user}': `@${senderPhone}`,
+            })
+          : '❌ Usuário não encontrado.';
+        return client.sendTextWithMentions(message.chatId, msg, true, [
+          sender.id,
+        ]);
       }
 
       const target = await client.getContact(targetId);
-      const sender = await client.getContact(message.sender.id);
 
       const neko = await new NekoClient().fetch('kick', 1);
       const gifUrl = neko.results?.[0]?.url;
@@ -109,10 +131,19 @@ export default {
       );
     } catch (err) {
       console.error('❌ Erro no comando /kick:', err);
-      await client.sendText(
-        message.chatId,
-        '❌ Não foi possível processar o comando.'
-      );
+      const senderPhone = message.sender.id.replace('@c.us', '');
+      const { User } = client.db;
+      const user = await User.findOne({ phone: senderPhone });
+      const user_lang = user?.config?.language?.substring(0, 2) || 'pt';
+
+      const msg = client.messages.errors?.unknownError?.[user_lang]
+        ? formatMsg(client.messages.errors.unknownError[user_lang], {
+            '{user}': `@${senderPhone}`,
+          })
+        : '❌ Ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde.';
+      await client.sendTextWithMentions(message.chatId, msg, true, [
+        message.sender.id,
+      ]);
     } finally {
       try {
         if (gifPath && fs.existsSync(gifPath)) {

@@ -4,21 +4,21 @@
   "main": "next.js",
   "type": "module",
   "scripts": {
-    "start": "node ./next.js"
+    "start": "cls && node --no-deprecation next.js"
   },
   "keywords": [],
   "author": "Luna Developer",
   "license": "ISC",
   "description": "A simple WhatsApp bot!",
   "dependencies": {
-    "@google/genai": "latest",
-    "@open-wa/wa-automate": "latest",
-    "axios": "latest",
-    "chalk": "latest",
-    "chromium": "^3.0.3",
-    "dotenv": "latest",
-    "mongoose": "latest",
-    "nekos-best.js": "latest",
-    "playwright": "^1.53.0"
+    "@google/genai": "^1.5.1",
+    "@open-wa/wa-automate": "^4.76.0",
+    "axios": "^1.10.0",
+    "chalk": "^5.4.1",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.5.0",
+    "mongoose": "^8.15.2",
+    "nekos-best.js": "^6.4.0",
+    "util": "^0.12.5"
   }
 }
