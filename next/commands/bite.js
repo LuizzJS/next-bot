@@ -17,7 +17,7 @@ export default {
   command_example: 'bite @luiz',
   group_only: true,
 
-  execute: async ({ client, message, args }) => {
+  execute: async ({ client, message, args, prefix }) => {
     const tempId = uuidv4();
 
     let gifPath = '';
@@ -105,13 +105,13 @@ export default {
         message.chatId,
         relativePath,
         `${tempId}.mp4`,
-        caption
+        caption,
       );
     } catch (err) {
       console.error('❌ Erro no comando /bite:', err);
       await client.sendText(
         message.chatId,
-        '❌ Não foi possível processar o comando.'
+        '❌ Não foi possível processar o comando.',
       );
     } finally {
       try {
@@ -124,7 +124,7 @@ export default {
       } catch (cleanupErr) {
         console.warn(
           '⚠️ Erro ao remover arquivos temporários:',
-          cleanupErr.message
+          cleanupErr.message,
         );
       }
     }

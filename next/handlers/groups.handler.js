@@ -1,29 +1,45 @@
 const groupHandler = async ({ event, client }) => {
   try {
-    if (
-      event.action !== 'add' ||
-      event.who !== client.getHostNumber() + '@c.us'
-    )
-      return;
+    const isFromParticipantsChange = (event?.action && event?.who) || false;
 
-    const groupData = await client.getChatById(event.chat);
+    let groupId, groupName;
 
-    const existing = await client.db.Group.findOne({ id: groupData.id });
+    if (isFromParticipantsChange) {
+      const botNumber = (await client.getMe()).id;
+      if (event.action !== 'add' || event.who !== botNumber) return;
+
+      groupId = event.chat;
+      const groupChat = await client.getChatById(groupId);
+      groupName =
+        groupChat.name || groupChat.formattedTitle || 'Grupo sem nome';
+    } else {
+      // Veio de onAddedToGroup
+      groupId = event.id;
+      groupName = event.name || event.formattedTitle || 'Grupo sem nome';
+    }
+
+    const existing = await client.db.Group.findOne({ id: groupId });
     if (existing) return;
 
-    const inviteLink = await client.getGroupInviteLink(groupData.id);
+    let inviteLink = null;
+    try {
+      inviteLink = await client.getGroupInviteLink(groupId);
+    } catch (inviteErr) {
+      console.warn(
+        `⚠️ Não foi possível obter link de convite do grupo ${groupName} (${groupId})`,
+      );
+    }
 
     await client.db.Group.create({
-      id: groupData.id,
-      name: groupData.name,
+      id: groupId,
+      name: groupName,
       inviteLink,
-      addedBy: event.author,
       prefix: client.prefix,
     });
 
-    console.log(`✅ Grupo registrado: ${groupData.name} (${groupData.id})`);
+    console.log(`✅ Grupo registrado: ${groupName} (${groupId})`);
   } catch (err) {
-    console.error('❌ Erro ao registrar grupo:', err.message);
+    console.error('❌ Erro ao registrar grupo:', err?.message || err);
   }
 };
 

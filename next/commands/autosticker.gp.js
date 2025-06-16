@@ -6,7 +6,7 @@ export default {
   bot_owner_only: false,
   admin_only: true,
 
-  execute: async ({ client, message }) => {
+  execute: async ({ client, message, args, prefix }) => {
     try {
       const groupId = message.chatId;
 
@@ -27,7 +27,7 @@ export default {
               autoSticker: false,
             },
           },
-          { upsert: true, new: true }
+          { upsert: true, new: true },
         );
 
         await client.sendText(groupId, '✅ Auto-sticker ativado neste grupo!');
@@ -41,13 +41,13 @@ export default {
       const status = group.autoSticker ? 'ativado' : 'desativado';
       await client.sendText(groupId, `✅ Auto-sticker ${status} neste grupo.`);
       console.log(
-        `[AUTO] Auto-sticker ${status} para grupo ${group.name} (${group.id})`
+        `[AUTO] Auto-sticker ${status} para grupo ${group.name} (${group.id})`,
       );
     } catch (err) {
       console.error('❌ Erro ao alternar auto-sticker:', err);
       await client.sendText(
         message.chatId,
-        '❌ Erro ao alternar auto-sticker. Tente novamente.'
+        '❌ Erro ao alternar auto-sticker. Tente novamente.',
       );
     }
   },

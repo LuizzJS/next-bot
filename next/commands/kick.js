@@ -17,7 +17,7 @@ export default {
   command_example: 'kick @luiz',
   group_only: true,
 
-  execute: async ({ client, message, args }) => {
+  execute: async ({ client, message, args, prefix }) => {
     const tempId = uuidv4();
     let gifPath = '';
     let mp4Path = '';
@@ -127,7 +127,7 @@ export default {
         message.chatId,
         relativePath,
         `${tempId}.mp4`,
-        caption
+        caption,
       );
     } catch (err) {
       console.error('❌ Erro no comando /kick:', err);
@@ -155,7 +155,7 @@ export default {
       } catch (cleanupErr) {
         console.warn(
           '⚠️ Erro ao remover arquivos temporários:',
-          cleanupErr.message
+          cleanupErr.message,
         );
       }
     }

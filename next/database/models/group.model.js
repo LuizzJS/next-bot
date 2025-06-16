@@ -18,10 +18,6 @@ const GroupSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    addedBy: {
-      type: String, // Número de quem adicionou o bot (ex: '5591...@c.us')
-      default: null,
-    },
     prefix: {
       type: String,
       default: '/',
@@ -30,7 +26,7 @@ const GroupSchema = new mongoose.Schema(
   {
     versionKey: false, // Remove "__v" do documento
     timestamps: true,
-  }
+  },
 );
 
 export default mongoose.model('Group', GroupSchema);

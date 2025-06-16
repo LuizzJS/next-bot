@@ -9,6 +9,13 @@ export const findUser = async ({ chat, input, client, message }) => {
     return message.mentionedJidList[0];
   }
 
+  if (message.startsWith('@')) {
+    const target = participants.find((p) =>
+      p.id.includes(input.replace('@', '')),
+    );
+    if (target) return target.id;
+  }
+
   if (/^\d{11,13}$/.test(input)) {
     const target = participants.find((p) => p.id.includes(input));
     if (target) return target.id;

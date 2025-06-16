@@ -17,7 +17,7 @@ export default {
   bot_owner_only: false,
   group_admin_only: false,
 
-  execute: async ({ client, message, args }) => {
+  execute: async ({ client, message, args, prefix }) => {
     try {
       const userPrompt = args.join(' ').trim();
       const basePrompt = process.env.NEXTBOT_PROMPT;
@@ -46,7 +46,7 @@ export default {
       await client.reply(
         message.chatId,
         '❌ Erro ao se comunicar com a Gemini AI.',
-        message.id
+        message.id,
       );
     }
   },

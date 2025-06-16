@@ -30,7 +30,7 @@ const userSchema = new mongoose.Schema(
       type: Map,
       of: new mongoose.Schema(
         {
-          mensagens: {
+          messages: {
             type: Number,
             default: 0,
           },
@@ -39,7 +39,7 @@ const userSchema = new mongoose.Schema(
             default: '',
           },
         },
-        { _id: false }
+        { _id: false },
       ),
       default: {},
     },
@@ -69,8 +69,44 @@ const userSchema = new mongoose.Schema(
         default: false,
       },
     },
+
+    // 🔥 Economia
+    economy: {
+      money: { type: Number, default: 0 }, // Dinheiro em mãos
+      bank: { type: Number, default: 0 }, // Dinheiro no banco
+      diamonds: { type: Number, default: 0 }, // Moeda premium
+    },
+
+    // 📦 Inventário
+    inventory: [
+      {
+        item: { type: String },
+        quantity: { type: Number, default: 1 },
+      },
+    ],
+
+    // ⏱️ Cooldowns de comandos
+    cooldowns: {
+      daily: { type: Date, default: null },
+      work: { type: Date, default: null },
+      crime: { type: Date, default: null },
+      rob: { type: Date, default: null },
+    },
+
+    // 📊 Estatísticas
+    stats: {
+      level: { type: Number, default: 1 },
+      xp: { type: Number, default: 0 },
+      jobsDone: { type: Number, default: 0 },
+    },
+
+    // 💼 Emprego atual (para comando /work)
+    job: {
+      name: { type: String, default: null }, // Ex: "padeiro", "entregador"
+      salary: { type: Number, default: 0 },
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 export default mongoose.model('User', userSchema);

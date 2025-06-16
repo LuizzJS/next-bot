@@ -6,7 +6,7 @@ export default {
   bot_owner_only: false,
   admin_only: true,
 
-  execute: async ({ client, message }) => {
+  execute: async ({ client, message, args, prefix }) => {
     try {
       const sender_id = message.sender?.id || message.author || message.from;
       const user_phone = sender_id.replace('@c.us', '');
@@ -23,10 +23,10 @@ export default {
         await client.sendText(
           message.chatId,
           `✅ Auto-sticker ativado para @${user_phone}.`,
-          { mentions: [sender_id] }
+          { mentions: [sender_id] },
         );
         console.log(
-          `[AUTO] Auto-sticker ativado para novo usuário: ${user_phone}`
+          `[AUTO] Auto-sticker ativado para novo usuário: ${user_phone}`,
         );
         return;
       }
@@ -42,14 +42,14 @@ export default {
       await client.sendText(
         message.chatId,
         `✅ Auto-sticker ${status} para @${user_phone}.`,
-        { mentions: [sender_id] }
+        { mentions: [sender_id] },
       );
       console.log(`[AUTO] Auto-sticker ${status} para usuário ${user_phone}`);
     } catch (err) {
       console.error('❌ Erro ao alternar auto-sticker do usuário:', err);
       await client.sendText(
         message.chatId,
-        '❌ Erro ao alternar auto-sticker. Tente novamente.'
+        '❌ Erro ao alternar auto-sticker. Tente novamente.',
       );
     }
   },

@@ -1,7 +1,6 @@
 import media_handler from './media.handler.js';
 
 const message_handler = async ({ message, client }) => {
-  const prefix = '/';
   const from = message.from;
   const is_group = from.includes('@g.us');
   const is_broadcast =
@@ -9,6 +8,15 @@ const message_handler = async ({ message, client }) => {
 
   try {
     if (is_broadcast || !message.body?.trim()) return;
+
+    // Define prefixo
+    let prefix = client.prefix || '/';
+    if (is_group) {
+      const groupData = await client.db.Group.findOne({ id: message.chatId });
+      if (groupData?.prefix) {
+        prefix = groupData.prefix;
+      }
+    }
 
     const sender_id = message.sender?.id || message.author || message.from;
     const sender = await client.getContact(sender_id);
@@ -31,11 +39,11 @@ const message_handler = async ({ message, client }) => {
             autoSticker: false,
           },
         },
-        { upsert: true, new: true }
+        { upsert: true, new: true },
       );
     }
 
-    // Busca usuário no banco
+    // Busca ou cria usuário no banco
     const user_phone = String(sender?.id).replace('@c.us', '');
     let user = await client.db.User.findOne({ phone: user_phone });
 
@@ -49,10 +57,23 @@ const message_handler = async ({ message, client }) => {
       return;
     }
 
+    // Incrementa mensagens no grupo atual (usando Map)
+    if (is_group) {
+      const groupKey = message.chatId.replace('.', '_');
+      const path = `data.${groupKey}.messages`;
+
+      await client.db.User.updateOne(
+        { phone: user_phone },
+        { $inc: { [path]: 1 } },
+        { upsert: true },
+      );
+    }
+
     // Trata mídias (imagem ou vídeo)
     if (
       message.mimetype?.startsWith('image/') ||
-      message.mimetype?.startsWith('video/')
+      message.mimetype?.startsWith('video/') ||
+      message.body.startsWith('sticker')
     ) {
       return await media_handler({ message, client });
     }
@@ -66,7 +87,7 @@ const message_handler = async ({ message, client }) => {
       : false;
 
     console.log(
-      `[MSG] Grupo: ${is_group} | Nome: ${sender_name} | ID: ${sender.id} | Conteúdo: ${message.body}`
+      `[MSG] Grupo: ${is_group} | Nome: ${sender_name} | ID: ${sender.id} | Conteúdo: ${message.body}`,
     );
 
     const body = message.body.trim();
@@ -84,7 +105,6 @@ const message_handler = async ({ message, client }) => {
       '{example}': command.command_example || '',
     };
 
-    // Função para substituir placeholders
     const formatMsg = (template) => {
       let msg = template;
       for (const [key, value] of Object.entries(placeholders)) {
@@ -93,16 +113,13 @@ const message_handler = async ({ message, client }) => {
       return msg;
     };
 
-    // Verificação de argumentos
     if (command.args_length && args.length < command.args_length) {
       const msg = client.messages?.restrictions?.missing_args?.[user_lang]
         ? formatMsg(client.messages.restrictions.missing_args[user_lang])
         : 'Argumentos insuficientes.';
-
       return client.sendTextWithMentions(message.chatId, msg);
     }
 
-    // Verificações de permissão
     if (command.group_only && !is_group) {
       const msg = client.messages?.restrictions?.group_only?.[user_lang]
         ? formatMsg(client.messages.restrictions.group_only[user_lang])
@@ -126,12 +143,12 @@ const message_handler = async ({ message, client }) => {
 
     // Executa o comando
     console.log(
-      `⚙️ Executando "${command.name}" | Por: ${sender_name} (${user_phone})`
+      `⚙️ Executando "${command.name}" | Por: ${sender_name} (${user_phone})`,
     );
     await client.react(message.id, '⌛');
     const start = Date.now();
 
-    await command.execute({ message, client, args });
+    await command.execute({ message, client, args, prefix });
 
     const runtime = (Date.now() - start).toFixed(2);
     console.log(`⚙️ "${command.name}" finalizado. Tempo: ${runtime}ms`);
@@ -139,11 +156,12 @@ const message_handler = async ({ message, client }) => {
   } catch (error) {
     console.error('❌ Erro no message_handler:', error);
     await client.react(message.id, '❎');
+
     const user_lang = message?.user?.config?.language?.substring(0, 2) || 'pt';
     const msg = client.messages?.errors?.unknownError?.[user_lang]
       ? client.messages.errors.unknownError[user_lang].replace(
           '{user}',
-          `@${message.sender?.id || message.author || message.from}`
+          `@${message.sender?.id || message.author || message.from}`,
         )
       : '❌ Ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde.';
     await client.sendText(message.chatId, msg);
