@@ -12,8 +12,29 @@ export default {
     if (!senderId)
       return client.sendText(message.chatId, '❌ Usuário não identificado');
 
-    const { Marriage } = client.db;
+    const { User, Marriage } = client.db;
 
+    // Busca usuário no DB ou cria com fallback no contato WhatsApp
+    async function findOrCreateUser(phoneWithSuffix) {
+      const phone = phoneWithSuffix.replace('@c.us', '');
+      let user = await User.findOne({ phone });
+      if (!user) {
+        let contact;
+        try {
+          contact = await client.getContact(phoneWithSuffix);
+        } catch {
+          contact = null;
+        }
+        user = await User.create({
+          phone,
+          name: contact?.pushname || contact?.name || 'Desconhecido',
+        });
+        console.warn(`⚠️ Usuário criado automaticamente: ${phone}`);
+      }
+      return user;
+    }
+
+    // Encontrar o alvo (pode ser menção, número, etc)
     const targetId = await client.findUser({
       chat: message.chatId,
       input: args.join(' '),
@@ -23,39 +44,22 @@ export default {
 
     if (!targetId)
       return client.sendText(message.chatId, '❌ Usuário não encontrado');
+
     if (targetId === senderId)
       return client.sendText(
         message.chatId,
         '❌ Você não pode casar consigo mesmo',
       );
 
-    // Função auxiliar para criar usuário se não existir
-    async function findOrCreateUser(phoneWithSuffix) {
-      const phone = phoneWithSuffix.replace('@c.us', '');
-      let user = await client.db.User.findOne({ phone });
-      if (!user) {
-        let contact;
-        try {
-          contact = await client.getContact(phoneWithSuffix);
-        } catch {
-          contact = null;
-        }
-        user = await client.db.User.create({
-          phone,
-          name: contact?.pushname || contact?.name || 'Desconhecido',
-        });
-        console.warn(`⚠️ Usuário criado automaticamente: ${phone}`);
-      }
-      return user;
-    }
-
+    // Pega os usuários no DB
     const senderUser = await findOrCreateUser(senderId);
     const targetUser = await findOrCreateUser(targetId);
 
-    const senderContact = await client.getContact(senderId);
-    const targetContact = await client.getContact(targetId);
+    // Usar os nomes do DB
+    const senderName = senderUser.name || 'Desconhecido';
+    const targetName = targetUser.name || 'Desconhecido';
 
-    // Verifica se já existe casamento pendente ou aceito entre eles (em qualquer direção)
+    // Verifica se já existe casamento pendente ou aceito entre eles
     const existingMarriage = await Marriage.findOne({
       $or: [
         { partner1: senderUser._id, partner2: targetUser._id },
@@ -66,17 +70,31 @@ export default {
 
     if (existingMarriage) {
       if (existingMarriage.status === 'accepted') {
-        return client.sendText(message.chatId, `💍 Vocês já estão casados!`);
-      }
-      if (existingMarriage.status === 'pending') {
         return client.sendText(
           message.chatId,
-          `💌 Já existe uma proposta pendente.`,
+          `💍 Vocês já estão casados!\n\n` +
+            `Para terminar o casamento, use o comando:\n` +
+            `➡️ *${prefix}divorciar*\n\n`,
+        );
+      }
+      if (existingMarriage.status === 'pending') {
+        // Exibir quem fez a proposta e para quem
+        // Como não tem userUsername direto, vamos buscar no DB
+        const partner1 = await User.findById(existingMarriage.partner1);
+        const partner2 = await User.findById(existingMarriage.partner2);
+
+        return client.sendText(
+          message.chatId,
+          `💌 Já existe uma proposta pendente:\n` +
+            `De: ${partner1?.name || 'Desconhecido'}\n` +
+            `Para: ${partner2?.name || 'Desconhecido'}\n\n` +
+            `✔️ Para aceitar use: *${prefix}aceitar*\n` +
+            `❌ Para recusar use: *${prefix}recusar*\n\n`,
         );
       }
     }
 
-    // Cria uma nova proposta
+    // Cria uma nova proposta de casamento
     try {
       const marriage = new Marriage({
         partner1: senderUser._id,
@@ -88,11 +106,9 @@ export default {
 
       await client.sendTextWithMentions(
         message.chatId,
-        `💌 Proposta de casamento enviada de ${
-          senderContact?.pushname || senderUser.name || 'Desconhecido'
-        } para ${
-          targetContact?.pushname || targetUser.name || 'Desconhecido'
-        }.`,
+        `💌 ${senderName} pediu a mão de ${targetName} em casamento 💍!\n\n` +
+          `Para aceitar esse pedido, ${targetName}, basta digitar ${prefix}aceitar.\n` +
+          `Se preferir recusar, digite ${prefix}recusar.\n`,
         [targetId, senderId],
       );
     } catch (error) {

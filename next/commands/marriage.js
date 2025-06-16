@@ -1,3 +1,10 @@
+import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime.js';
+import 'dayjs/locale/pt-br.js';
+
+dayjs.extend(relativeTime);
+dayjs.locale('pt-br');
+
 export default {
   name: 'marriage',
   aliases: ['casamento', 'matrimonio'],
@@ -7,15 +14,14 @@ export default {
   bot_owner_only: false,
   group_admin_only: false,
 
-  execute: async ({ client, message, args, prefix }) => {
+  execute: async ({ client, message }) => {
     const senderId = message.sender?.id || message.sender;
     if (!senderId) {
-      return client.sendText(message.chatId, '❌ Usuário não identificado');
+      return client.sendText(message.chatId, '❌ Usuário não identificado.');
     }
 
     const { User, Marriage } = client.db;
 
-    // Função para obter ou criar o usuário
     async function findOrCreateUser(phoneWithSuffix) {
       const phone = phoneWithSuffix.replace('@c.us', '');
       let user = await User.findOne({ phone });
@@ -34,7 +40,6 @@ export default {
       return user;
     }
 
-    // Determina o alvo (menção ou comando direto)
     let targetId = senderId;
     if (message.mentionedJidList?.length) {
       targetId = message.mentionedJidList[0];
@@ -42,32 +47,52 @@ export default {
 
     const user = await findOrCreateUser(targetId);
 
-    // Procura casamento com status "accepted"
     const marriage = await Marriage.findOne({
       $or: [{ partner1: user._id }, { partner2: user._id }],
       status: 'accepted',
     }).populate('partner1 partner2');
 
+    const isSender = targetId === senderId;
+
     if (!marriage) {
-      const isSender = targetId === senderId;
       return client.sendText(
         message.chatId,
         isSender
-          ? '💔 Você não está casado(a).'
-          : `💔 ${user.name || 'Esse usuário'} não está casado(a).`,
+          ? '💔 Você ainda não encontrou o amor...'
+          : `💔 ${user.name || 'Essa pessoa'} está solteira no momento.`,
       );
     }
 
-    const partner = marriage.partner1._id.equals(user._id)
+    let partner = marriage.partner1._id.equals(user._id)
       ? marriage.partner2
       : marriage.partner1;
 
-    const userDisplay = user.name || 'Você';
-    const partnerDisplay = partner.name || 'seu parceiro(a)';
+    if (!partner.name) {
+      const partnerFromDb = await User.findOne({ _id: partner._id });
+      if (partnerFromDb && partnerFromDb.name) {
+        partner.name = partnerFromDb.name;
+        if (marriage.partner1._id.equals(user._id)) {
+          marriage.partner2.name = partner.name;
+        } else {
+          marriage.partner1.name = partner.name;
+        }
+      }
+    }
 
-    return client.sendText(
-      message.chatId,
-      `💍 ${userDisplay} está casado(a) com ${partnerDisplay}.`,
-    );
+    const userDisplay = isSender ? 'Você' : user.name || 'Essa pessoa';
+    const partnerDisplay = isSender
+      ? 'seu parceiro(a)'
+      : partner.name || 'seu parceiro(a)';
+
+    // Usa marriedAt se existir, senão fallback para updatedAt
+    const marriedAtDate = marriage.marriedAt || marriage.updatedAt;
+    const since = dayjs(marriedAtDate).format('D [de] MMMM [de] YYYY');
+    const duration = dayjs(marriedAtDate).fromNow();
+
+    const messageText =
+      `💍 *${userDisplay}* e *${partnerDisplay}* estão casados desde *${since}*.\n` +
+      `⏳ Faz ${duration} que o casamento foi confirmado!`;
+
+    return client.sendText(message.chatId, messageText);
   },
 };

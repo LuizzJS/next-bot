@@ -9,7 +9,7 @@ export const findUser = async ({ chat, input, client, message }) => {
     return message.mentionedJidList[0];
   }
 
-  if (message.startsWith('@')) {
+  if (message.body.startsWith('@')) {
     const target = participants.find((p) =>
       p.id.includes(input.replace('@', '')),
     );
