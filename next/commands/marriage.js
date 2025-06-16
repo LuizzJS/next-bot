@@ -1,9 +1,19 @@
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime.js';
 import 'dayjs/locale/pt-br.js';
+import humanizeDuration from 'humanize-duration';
 
 dayjs.extend(relativeTime);
 dayjs.locale('pt-br');
+
+const humanizer = humanizeDuration.humanizer({
+  language: 'pt',
+  fallbacks: ['en'],
+  units: ['y', 'mo', 'd', 'h', 'm'],
+  round: true,
+  conjunction: ' e ',
+  serialComma: false,
+});
 
 export default {
   name: 'marriage',
@@ -14,85 +24,88 @@ export default {
   bot_owner_only: false,
   group_admin_only: false,
 
-  execute: async ({ client, message }) => {
-    const senderId = message.sender?.id || message.sender;
-    if (!senderId) {
-      return client.sendText(message.chatId, '❌ Usuário não identificado.');
-    }
-
-    const { User, Marriage } = client.db;
-
-    async function findOrCreateUser(phoneWithSuffix) {
-      const phone = phoneWithSuffix.replace('@c.us', '');
-      let user = await User.findOne({ phone });
-      if (!user) {
-        let contact;
-        try {
-          contact = await client.getContact(phoneWithSuffix);
-        } catch {
-          contact = null;
-        }
-        user = await User.create({
-          phone,
-          name: contact?.pushname || contact?.name || 'Desconhecido',
-        });
+  execute: async ({ client, message, args }) => {
+    try {
+      const senderId = message.sender?.id || message.sender;
+      if (!senderId) {
+        return client.sendText(message.chatId, '❌ Usuário não identificado.');
       }
-      return user;
-    }
 
-    let targetId = senderId;
-    if (message.mentionedJidList?.length) {
-      targetId = message.mentionedJidList[0];
-    }
+      const { User, Marriage } = client.db;
 
-    const user = await findOrCreateUser(targetId);
+      async function getOrCreateUser(id) {
+        const phone = id.replace('@c.us', '');
+        let user = await User.findOne({ phone });
+        if (!user) {
+          const contact = await client.getContact(id);
+          user = await User.create({
+            phone,
+            name: contact?.pushname || contact?.formattedName || 'Desconhecido',
+          });
+        }
+        return user;
+      }
 
-    const marriage = await Marriage.findOne({
-      $or: [{ partner1: user._id }, { partner2: user._id }],
-      status: 'accepted',
-    }).populate('partner1 partner2');
+      const senderUser = await getOrCreateUser(senderId);
 
-    const isSender = targetId === senderId;
+      let targetUser = senderUser;
+      if (args.length > 0) {
+        const foundUser = await client.findUser({
+          chat: message.chatId,
+          input: args.join(' '),
+          client,
+          message,
+        });
+        if (foundUser && foundUser.phone) {
+          targetUser = await getOrCreateUser(foundUser.phone + '@c.us');
+        }
+      }
 
-    if (!marriage) {
+      const isSelf = senderUser.phone === targetUser.phone;
+
+      const marriage = await Marriage.findOne({
+        $or: [{ partner1: targetUser._id }, { partner2: targetUser._id }],
+        status: 'accepted',
+      }).populate('partner1 partner2');
+
+      if (!marriage) {
+        const displayName = targetUser.name || 'Essa pessoa';
+        const msg = isSelf
+          ? '💔 Você ainda não encontrou o amor...'
+          : `💔 ${displayName} está solteira(o) no momento.`;
+        return client.sendText(message.chatId, msg);
+      }
+
+      const partner = marriage.partner1._id.equals(targetUser._id)
+        ? marriage.partner2
+        : marriage.partner1;
+
+      async function ensureUserName(user) {
+        if (!user.name) {
+          const dbUser = await User.findById(user._id);
+          return dbUser?.name || 'Desconhecido';
+        }
+        return user.name;
+      }
+
+      const userName = await ensureUserName(targetUser);
+      const partnerName = await ensureUserName(partner);
+
+      const marriedAtDate = marriage.marriedAt || marriage.updatedAt;
+      const since = dayjs(marriedAtDate).format('D [de] MMMM [de] YYYY');
+      const msDuration = dayjs().diff(marriedAtDate);
+      const duration = humanizer(msDuration) || 'menos de um minuto';
+
+      const selfText = `💍 ${userName}, você e *${partnerName}* estão casados desde *${since}*.\n⏳ O seu casamento já dura *${duration}*!`;
+      const otherText = `💍 *${userName}* e *${partnerName}* estão casados desde *${since}*.\n⏳ O casamento deles já dura *${duration}*!`;
+
+      return client.sendText(message.chatId, isSelf ? selfText : otherText);
+    } catch (error) {
+      console.error('[MARRIAGE] Erro inesperado:', error);
       return client.sendText(
         message.chatId,
-        isSender
-          ? '💔 Você ainda não encontrou o amor...'
-          : `💔 ${user.name || 'Essa pessoa'} está solteira no momento.`,
+        '❌ Ocorreu um erro ao verificar o casamento.',
       );
     }
-
-    let partner = marriage.partner1._id.equals(user._id)
-      ? marriage.partner2
-      : marriage.partner1;
-
-    if (!partner.name) {
-      const partnerFromDb = await User.findOne({ _id: partner._id });
-      if (partnerFromDb && partnerFromDb.name) {
-        partner.name = partnerFromDb.name;
-        if (marriage.partner1._id.equals(user._id)) {
-          marriage.partner2.name = partner.name;
-        } else {
-          marriage.partner1.name = partner.name;
-        }
-      }
-    }
-
-    const userDisplay = isSender ? 'Você' : user.name || 'Essa pessoa';
-    const partnerDisplay = isSender
-      ? 'seu parceiro(a)'
-      : partner.name || 'seu parceiro(a)';
-
-    // Usa marriedAt se existir, senão fallback para updatedAt
-    const marriedAtDate = marriage.marriedAt || marriage.updatedAt;
-    const since = dayjs(marriedAtDate).format('D [de] MMMM [de] YYYY');
-    const duration = dayjs(marriedAtDate).fromNow();
-
-    const messageText =
-      `💍 *${userDisplay}* e *${partnerDisplay}* estão casados desde *${since}*.\n` +
-      `⏳ Faz ${duration} que o casamento foi confirmado!`;
-
-    return client.sendText(message.chatId, messageText);
   },
 };

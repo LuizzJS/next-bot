@@ -17,21 +17,33 @@ export default {
   bot_owner_only: false,
   group_admin_only: false,
 
-  execute: async ({ client, message, args, prefix }) => {
+  execute: async ({ client, message, args }) => {
     try {
+      const userId = message.sender?.id || message.sender;
+      if (!userId) {
+        return client.reply(
+          message.chatId,
+          '❌ Usuário não identificado.',
+          message.id,
+        );
+      }
+
       const userPrompt = args.join(' ').trim();
-      const basePrompt = process.env.NEXTBOT_PROMPT;
+      const basePrompt = process.env.NEXTBOT_PROMPT || '';
+
+      let quotedText = '';
+      if (message.quotedMsg && message.quotedMsg.body) {
+        quotedText = `Mensagem citada:\n${message.quotedMsg.body}\n\n`;
+      }
+
+      const fullPrompt = `${basePrompt}\n${quotedText}Pergunta:\n${userPrompt}`;
 
       const result = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
         contents: [
           {
             role: 'user',
-            parts: [{ text: basePrompt }],
-          },
-          {
-            role: 'user',
-            parts: [{ text: userPrompt }],
+            parts: [{ text: fullPrompt }],
           },
         ],
       });

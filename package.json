@@ -17,6 +17,7 @@
     "chalk": "^5.4.1",
     "dayjs": "^1.11.13",
     "dotenv": "^16.5.0",
+    "humanize-duration": "^3.33.0",
     "mongoose": "^8.15.2",
     "nekos-best.js": "^6.4.0",
     "util": "^0.12.5"
