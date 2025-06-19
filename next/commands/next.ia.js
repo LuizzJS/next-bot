@@ -53,11 +53,12 @@ export default {
       // Salva memória atualizada
       userMemories.set(senderId, memory);
 
-      // Prepara conteúdo para a API: concatena textos
-      const parts = memory.map((m) => m.content);
-      const contents = [createUserContent(parts)];
+      // Prepara conteúdo para a API: cada mensagem como um conteúdo separado,
+      // ou concatenado, dependendo do formato esperado pela API Gemini
+      // Aqui uso array com mensagens separadas para melhor contexto
+      const contents = memory.map((m) => createUserContent(m.content));
 
-      // Chama a API Gemini
+      // Chama a API Gemini com o histórico
       const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
         contents,
@@ -70,13 +71,16 @@ export default {
 
       // Adiciona resposta da IA na memória
       memory.push({ role: 'assistant', content: textResponse });
-      if (memory.length > 6) memory.shift(); // mantém o tamanho máximo
+
+      // Limita memória novamente, evita crescimento infinito
+      if (memory.length > 6) memory = memory.slice(memory.length - 6);
+
       userMemories.set(senderId, memory);
 
       // Envia resposta para o usuário, formatando o texto para WhatsApp
       await client.reply(
         chatId,
-        textResponse.replaceAll('**', '*'),
+        textResponse.replace(/\*\*/g, '*'),
         message.id
       );
     } catch (error) {

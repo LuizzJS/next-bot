@@ -9,7 +9,7 @@ export default {
 
   execute: async ({ client, message, args, prefix }) => {
     const { chatId, sender } = message;
-    const senderId = sender?.id || message.author || message.from;
+    const senderId = sender?.id || message.author || message.from || '';
 
     if (!senderId) {
       return client.reply(chatId, '❌ Usuário não identificado.', message.id);
@@ -52,7 +52,7 @@ async function getUserProfile(client, User, message, args, senderId) {
       message,
     });
 
-    if (foundUser) {
+    if (foundUser?.id) {
       return await getOrCreateUser(User, foundUser.id, client);
     }
   }
@@ -98,6 +98,11 @@ async function createNewUser(User, phone, contact) {
       xp: 0,
       streak: 0,
       itemsBought: 0,
+      jobsDone: 0,
+      hoursWorked: 0,
+      health: 100,
+      happiness: 50,
+      energy: 100,
     },
     activity: {
       lastSeen: new Date(),
@@ -120,8 +125,22 @@ async function createBasicUser(User, phone) {
       lastDaily: null,
       lastWork: null,
     },
-    stats: { level: 1, xp: 0, streak: 0, itemsBought: 0 },
-    activity: { lastSeen: new Date(), commandsUsed: 0, messagesSent: 0 },
+    stats: {
+      level: 1,
+      xp: 0,
+      streak: 0,
+      itemsBought: 0,
+      jobsDone: 0,
+      hoursWorked: 0,
+      health: 100,
+      happiness: 50,
+      energy: 100,
+    },
+    activity: {
+      lastSeen: new Date(),
+      commandsUsed: 0,
+      messagesSent: 0,
+    },
     registeredAt: new Date(),
   });
 }
@@ -139,9 +158,11 @@ function buildProfileMessage(user, prefix, senderId) {
     timeAgo: getTimeAgo(now),
     progressBar: (percent) => {
       const length = 10;
-      const filled = '🟩'.repeat(Math.round((percent / 100) * length));
-      const empty = '⬜'.repeat(length - filled.length);
-      return `${filled}${empty} ${percent.toFixed(1)}%`;
+      const clampedPercent = Math.min(Math.max(percent, 0), 100);
+      const filledLength = Math.round((clampedPercent / 100) * length);
+      const filled = '🟩'.repeat(filledLength);
+      const empty = '⬜'.repeat(length - filledLength);
+      return `${filled}${empty} ${clampedPercent.toFixed(1)}%`;
     },
   };
 
@@ -166,21 +187,22 @@ function buildProfileMessage(user, prefix, senderId) {
   message += `▸ Total Ganho: ${format.currency(
     user.economy?.totalEarned || 0
   )}\n`;
-  message += `▸ Total Gasto: ${format.currency(
-    user.economy?.totalSpent || 0
-  )}\n`;
-  message += `▸ Último daily: ${format.timeAgo(user.economy?.lastDaily)}\n`;
-  message += `▸ Último trabalho: ${format.timeAgo(user.economy?.lastWork)}\n\n`;
+
+  // Seção de Status
+  message += `❤️ *Status*\n`;
+  message += `▸ Saúde: ${format.progressBar(user.stats.health)}\n`;
+  message += `▸ Energia: ${format.progressBar(user.stats.energy)}\n`;
+  message += `▸ Felicidade: ${format.progressBar(user.stats.happiness)}\n\n`;
 
   // Seção de Progresso
   message += `📊 *Progresso*\n`;
   message += `▸ Nível: ${levelProgress.level}\n`;
   message += `▸ XP: ${levelProgress.xp}/${levelProgress.xpNeeded}\n`;
   message += `▸ Progresso: ${format.progressBar(levelProgress.progress)}\n`;
-  message += `▸ Sequência ativa: ${user.stats?.streak || 0} dias\n\n`;
 
   // Seção de Estatísticas
   message += `🏆 *Estatísticas*\n`;
+  message += `▸ Trabalhos feitos: ${user.stats?.jobsDone || 0}\n`;
   message += `▸ Itens comprados: ${user.stats?.itemsBought || 0}\n`;
   message += `▸ Comandos usados: ${user.activity?.commandsUsed || 0}\n`;
   message += `▸ Mensagens enviadas: ${user.activity?.messagesSent || 0}\n`;
@@ -194,6 +216,7 @@ function buildProfileMessage(user, prefix, senderId) {
     message += `▸ Use \`${prefix}daily\` para resgatar seu prêmio diário\n`;
     message += `▸ Use \`${prefix}work\` para trabalhar e ganhar dinheiro\n`;
     message += `▸ Use \`${prefix}loja\` para ver itens disponíveis\n`;
+    message += `▸ Use \`${prefix}usar <item>\` para usar um item do inventário\n`;
   } else {
     message += `🔹 Dica: Use \`${prefix}profile\` para ver seu próprio perfil`;
   }
@@ -201,7 +224,7 @@ function buildProfileMessage(user, prefix, senderId) {
   return message;
 }
 
-// Helper functions para formatação
+// Helper para formatação de tempo relativo
 function getTimeAgo(now) {
   return (date) => {
     if (!date) return 'Nunca';
@@ -226,6 +249,7 @@ function getTimeAgo(now) {
   };
 }
 
+// Helper para cálculo do progresso de nível
 function calculateLevelProgress(stats = {}) {
   const level = stats.level || 1;
   const xp = stats.xp || 0;

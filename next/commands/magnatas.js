@@ -2,19 +2,19 @@ export default {
   name: 'magnates',
   aliases: ['magnatas', 'ricos'],
   args: false,
-  description: 'Mostra os 5 usuários com maior saldo na economia atual.',
+  description: 'Mostra os 5 usuários com maior saldo em cash.',
   group_only: true,
   bot_owner_only: false,
   group_admin_only: false,
-  execute: async ({ client, message, args }) => {
+
+  execute: async ({ client, message }) => {
     try {
       const { User } = client.db;
-
       const senderPhone = message.sender.id.replace('@c.us', '');
       const user = await User.findOne({ phone: senderPhone });
       const user_lang = user?.config?.language?.substring(0, 2) || 'pt';
 
-      const topUsers = await User.find().sort({ 'economy.money': -1 }).limit(5);
+      const topUsers = await User.find().sort({ 'economy.cash': -1 }).limit(5);
 
       if (topUsers.length === 0) {
         const noMagnatesMsg =
@@ -29,10 +29,10 @@ export default {
 
       topUsers.forEach((u, i) => {
         const name =
-          u.name ||
+          u.name?.trim() ||
           client.messages?.economy?.unknownName?.[user_lang] ||
           'Desconhecido';
-        const money = u.economy?.money || 0;
+        const money = u.economy?.cash || 0;
         const formattedMoney = money.toLocaleString('pt-BR', {
           style: 'currency',
           currency: 'BRL',

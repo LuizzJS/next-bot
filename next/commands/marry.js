@@ -18,13 +18,14 @@ export default {
 
     const { User, Marriage } = client.db;
 
-    async function findOrCreateUser(phoneWithSuffix) {
-      const phone = phoneWithSuffix.replace('@c.us', '');
+    // Função para buscar/criar usuário no banco, usando o retorno do findUser (id com @c.us)
+    async function findOrCreateUser(userIdWithSuffix) {
+      const phone = userIdWithSuffix.replace('@c.us', '');
       let user = await User.findOne({ phone });
       if (!user) {
         let contact;
         try {
-          contact = await client.getContact(phoneWithSuffix);
+          contact = await client.getContact(userIdWithSuffix);
         } catch {
           contact = null;
         }
@@ -37,33 +38,36 @@ export default {
       return user;
     }
 
-    const targetId = await client.findUser({
-      chat: message.chatId,
+    // Usa o método findUser para obter { id, phone, name?, isInternational? }
+    const targetUserObj = await client.findUser({
+      chat: message.chat,
       input: args.join(' '),
       client,
       message,
     });
 
-    if (!targetId)
+    if (!targetUserObj)
       return client.reply(
         message.chatId,
         '❌ Usuário não encontrado.',
         message.id
       );
 
-    if (targetId === senderId)
+    if (targetUserObj.id === senderId)
       return client.reply(
         message.chatId,
         '❌ Você não pode casar consigo mesmo.',
         message.id
       );
 
+    // Busca ou cria os usuários no banco
     const senderUser = await findOrCreateUser(senderId);
-    const targetUser = await findOrCreateUser(targetId);
+    const targetUser = await findOrCreateUser(targetUserObj.id);
 
     const senderName = senderUser.name || 'Desconhecido';
-    const targetName = targetUser.name || 'Desconhecido';
+    const targetName = targetUser.name || targetUserObj.name || 'Desconhecido';
 
+    // Checa se já existe casamento pendente ou aceito entre os dois
     const existingMarriage = await Marriage.findOne({
       $or: [
         { partner1: senderUser._id, partner2: targetUser._id },
@@ -95,6 +99,7 @@ export default {
       }
     }
 
+    // Verifica se o remetente já está casado com outra pessoa
     const senderMarriage = await Marriage.findOne({
       $or: [{ partner1: senderUser._id }, { partner2: senderUser._id }],
       status: 'accepted',
@@ -109,6 +114,7 @@ export default {
       );
     }
 
+    // Verifica se o destinatário já está casado com outra pessoa
     const targetMarriage = await Marriage.findOne({
       $or: [{ partner1: targetUser._id }, { partner2: targetUser._id }],
       status: 'accepted',
@@ -128,6 +134,7 @@ export default {
         partner1: senderUser._id,
         partner2: targetUser._id,
         status: 'pending',
+        proposer: senderUser._id, // <-- define quem fez a proposta!
       });
 
       await marriage.save();

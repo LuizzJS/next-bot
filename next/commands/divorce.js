@@ -2,7 +2,9 @@ export default {
   name: 'divorce',
   aliases: ['divorciar', 'divorcio', 'divórcio'],
   args: false,
-  description: 'Inicia um pedido de divórcio.',
+  argsText: '',
+  description:
+    'Inicia um pedido de divórcio com seu parceiro(a). O parceiro precisa confirmar ou cancelar.',
   group_only: false,
   bot_owner_only: false,
   group_admin_only: false,
@@ -19,9 +21,8 @@ export default {
     try {
       const { Marriage, User } = client.db;
 
-      const senderUser = await User.findOne({
-        phone: senderId.replace('@c.us', ''),
-      });
+      const senderPhone = senderId.replace('@c.us', '');
+      const senderUser = await User.findOne({ phone: senderPhone });
       if (!senderUser)
         return client.reply(
           message.chatId,
@@ -41,28 +42,34 @@ export default {
           message.id
         );
 
-      if (marriage.divorceStatus === 'pending') {
+      if (marriage.divorceStatus === 'pending')
         return client.reply(
           message.chatId,
           '❌ Já existe um pedido de divórcio pendente.',
           message.id
         );
-      }
 
       marriage.divorceStatus = 'pending';
       marriage.divorceRequester = senderUser._id;
       await marriage.save();
 
-      const partnerId = marriage.getPartnerOf(senderUser._id);
+      let partnerId;
+      if (marriage.partner1._id.equals(senderUser._id)) {
+        partnerId = marriage.partner2._id;
+      } else {
+        partnerId = marriage.partner1._id;
+      }
+
       const partnerUser = await User.findById(partnerId);
+
+      const senderName = senderUser.name || 'Você';
+      const partnerName = partnerUser?.name || 'seu parceiro(a)';
 
       await client.reply(
         message.chatId,
-        `⚠️ Pedido de divórcio iniciado entre ${senderUser?.name} e ${
-          partnerUser?.name || 'seu parceiro(a)'
-        }.\n` +
-          `Você deve responder com:\n` +
-          `*${prefix}confirmar* para confirmar o divórcio, ou *${prefix}retirar* para cancelar o pedido.`,
+        `⚠️ Pedido de divórcio iniciado entre ${senderName} e ${partnerName}.\n` +
+          `O parceiro deve responder com:\n` +
+          `*${prefix}confirmar* para confirmar o divórcio ou *${prefix}retirar* para cancelar o pedido.`,
         message.id
       );
     } catch (error) {

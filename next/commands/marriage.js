@@ -41,7 +41,7 @@ export default {
         const phone = id.replace('@c.us', '');
         let user = await User.findOne({ phone });
         if (!user) {
-          const contact = await client.getContact(id);
+          const contact = await client.getContact(id).catch(() => null);
           user = await User.create({
             phone,
             name: contact?.pushname || contact?.formattedName || 'Desconhecido',
@@ -52,23 +52,27 @@ export default {
 
       const senderUser = await getOrCreateUser(senderId);
 
-      // Se foi passado argumento, tenta buscar outro usuário
+      // Se houver argumento, busca o usuário correspondente, senão usa o sender
       let targetUser = senderUser;
       if (args.length > 0) {
         const foundUser = await client.findUser({
-          chat: message.chatId,
+          chat: message.chat,
           input: args.join(' '),
           client,
           message,
         });
-        if (foundUser && foundUser.phone) {
-          targetUser = await getOrCreateUser(foundUser.phone + '@c.us');
+        if (foundUser?.phone) {
+          // Normaliza o id para o formato @c.us
+          const targetId = foundUser.id?.includes('@c.us')
+            ? foundUser.id
+            : `${foundUser.phone}@c.us`;
+          targetUser = await getOrCreateUser(targetId);
         }
       }
 
       const isSelf = senderUser.phone === targetUser.phone;
 
-      // Busca casamento onde targetUser seja partner1 ou partner2, status aceito
+      // Busca casamento aceito envolvendo o targetUser
       const marriage = await Marriage.findOne({
         $or: [{ partner1: targetUser._id }, { partner2: targetUser._id }],
         status: 'accepted',
@@ -82,16 +86,19 @@ export default {
         return client.reply(message.chatId, msg, message.id);
       }
 
-      const partner = marriage.partner1._id.equals(targetUser._id)
-        ? marriage.partner2
-        : marriage.partner1;
+      // Define quem é o parceiro do targetUser
+      // Usa String() para comparação segura
+      const targetIdStr = String(targetUser._id);
+      const partner =
+        String(marriage.partner1._id) === targetIdStr
+          ? marriage.partner2
+          : marriage.partner1;
 
-      // Garante nome conhecido para usuário e parceiro
       const userName = targetUser.name || 'Desconhecido';
       const partnerName = partner.name || 'Desconhecido';
 
-      // Data casamento ou atualização do registro
-      const marriedAtDate = marriage.marriedAt || marriage.updatedAt;
+      const marriedAtDate =
+        marriage.marriedAt || marriage.updatedAt || new Date();
       const since = dayjs(marriedAtDate).format('D [de] MMMM [de] YYYY');
       const msDuration = dayjs().diff(marriedAtDate);
       const duration = humanizer(msDuration) || 'menos de um minuto';

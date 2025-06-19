@@ -10,7 +10,7 @@ export default {
     const senderId = message.sender.id.replace('@c.us', '');
 
     const STORE_ITEMS = {
-      comida: {
+      food: {
         1: {
           id: 'burger_1',
           name: '🍔 Hambúrguer',
@@ -26,7 +26,7 @@ export default {
           effect: { hunger: +50 },
         },
       },
-      diversao: {
+      fun: {
         1: {
           id: 'game_1',
           name: '🎮 Videogame',
@@ -37,19 +37,24 @@ export default {
       },
     };
 
+    const categories = Object.keys(STORE_ITEMS);
+
     const showCategories = async () => {
       let msg = '🛍️ *LOJA VIRTUAL* 🛍️\n\n';
       msg += '📂 *Categorias:*\n';
-      msg += '1. 🍔 Comida\n';
-      msg += '2. 🎮 Diversão\n\n';
-      msg += `Use *${prefix}loja <categoria>* para ver itens\n`;
+      categories.forEach((cat, i) => {
+        const icon = cat === 'food' ? '🍔' : cat === 'fun' ? '🎮' : '';
+        msg += `${i + 1}. ${icon} ${
+          cat.charAt(0).toUpperCase() + cat.slice(1)
+        }\n`;
+      });
+      msg += `\nUse *${prefix}loja <categoria>* para ver os itens\n`;
       msg += `Exemplo: *${prefix}loja 1*`;
 
       await client.sendText(chatId, msg);
     };
 
     const showItems = async (categoryNum) => {
-      const categories = Object.keys(STORE_ITEMS);
       if (!categories[categoryNum - 1]) {
         return await client.sendText(chatId, '❌ Categoria inválida!');
       }
@@ -59,12 +64,15 @@ export default {
 
       let msg = `🛒 *${categoryName.toUpperCase()}* 🛒\n\n`;
 
-      Object.entries(items).forEach(([id, item]) => {
-        msg += `*${id}.* ${item.name} - R$${item.price}\n`;
+      Object.entries(items).forEach(([key, item], index) => {
+        msg += `*${index + 1}.* ${item.name} - ${item.price.toLocaleString(
+          'pt-BR',
+          { style: 'currency', currency: 'BRL' }
+        )}\n`;
         msg += `   ${item.description}\n\n`;
       });
 
-      msg += `\nPara comprar: *${prefix}comprar ${categoryNum} <item>*\n`;
+      msg += `Para comprar: *${prefix}comprar ${categoryNum} <item>*\n`;
       msg += `Exemplo: *${prefix}comprar 1 2* para comprar pizza`;
 
       await client.sendText(chatId, msg);
@@ -76,47 +84,97 @@ export default {
         return await client.sendText(chatId, '❌ Você não está registrado!');
       }
 
-      const categories = Object.keys(STORE_ITEMS);
-      const categoryName = categories[categoryNum - 1];
-      if (!categoryName) {
+      if (!categories[categoryNum - 1]) {
         return await client.sendText(chatId, '❌ Categoria inválida!');
       }
 
-      const item = STORE_ITEMS[categoryName][itemNum];
-      if (!item) {
+      const categoryName = categories[categoryNum - 1];
+      const items = STORE_ITEMS[categoryName];
+      const itemKeys = Object.keys(items);
+
+      if (!itemKeys[itemNum - 1]) {
         return await client.sendText(chatId, '❌ Item não encontrado!');
       }
 
-      try {
-        // Usa método virtual / instancia para remover dinheiro
-        await user.removeMoney(item.price, `Compra: ${item.name}`, 'shop', {
-          itemId: item.id,
-        });
+      const item = items[itemKeys[itemNum - 1]];
 
-        // Usa método para adicionar item ao inventário
-        await user.addItemToInventory({
-          itemId: item.id,
-          name: item.name,
-          category: categoryName,
-          quantity: 1,
-          effect: item.effect,
-        });
+      if (!user.economy?.cash || user.economy.cash < item.price) {
+        return await client.sendText(
+          chatId,
+          `❌ Saldo insuficiente! Você precisa de ${item.price.toLocaleString(
+            'pt-BR',
+            { style: 'currency', currency: 'BRL' }
+          )} e tem ${
+            user.economy?.cash?.toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }) || 'R$0,00'
+          }`
+        );
+      }
+
+      try {
+        // Removendo dinheiro
+        if (typeof user.removeMoney === 'function') {
+          await user.removeMoney(item.price, `Compra: ${item.name}`, 'shop', {
+            itemId: item.id,
+          });
+        } else {
+          user.economy.cash -= item.price;
+        }
+
+        // Adicionando item ao inventário
+        if (typeof user.addItemToInventory === 'function') {
+          await user.addItemToInventory({
+            itemId: item.id,
+            name: item.name,
+            category: categoryName,
+            quantity: 1,
+            effect: item.effect,
+          });
+        } else {
+          // Caso não tenha método, atualiza inventário manualmente
+          if (!user.inventory) user.inventory = [];
+          const invItem = user.inventory.find((i) => i.itemId === item.id);
+          if (invItem) {
+            invItem.quantity += 1;
+          } else {
+            user.inventory.push({
+              itemId: item.id,
+              name: item.name,
+              category: categoryName,
+              quantity: 1,
+              effect: item.effect,
+            });
+          }
+        }
 
         await user.save();
 
         await client.sendText(
           chatId,
-          `✅ *Compra realizada!*\n\n` +
+          `✅ Compra realizada!\n\n` +
             `📦 Item: ${item.name}\n` +
-            `💵 Preço: R$${item.price}\n` +
-            `💰 Saldo: R$${user.economy.cash}\n\n` +
+            `💵 Preço: ${item.price.toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            })}\n` +
+            `💰 Saldo atual: ${user.economy.cash.toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            })}\n\n` +
             `Use *${prefix}inventario* para ver seus itens`
         );
       } catch (error) {
-        return await client.sendText(
+        console.error('Erro na compra:', error);
+        await client.sendText(
           chatId,
-          `❌ Erro na compra: ${error.message}\n\n` +
-            `Você precisa de R$${item.price} mas só tem R$${user.economy.cash}`
+          `❌ Erro na compra: ${error.message}\n\nSaldo disponível: ${
+            user.economy.cash?.toLocaleString('pt-BR', {
+              style: 'currency',
+              currency: 'BRL',
+            }) || 'R$0,00'
+          }`
         );
       }
     };
@@ -125,17 +183,19 @@ export default {
       if (args.length === 0) return await showCategories();
 
       const categoryNum = parseInt(args[0]);
-      if (isNaN(categoryNum))
+      if (isNaN(categoryNum)) {
         return await client.sendText(
           chatId,
           '❌ Use um número para a categoria!'
         );
+      }
 
       if (args.length === 1) return await showItems(categoryNum);
 
       const itemNum = parseInt(args[1]);
-      if (isNaN(itemNum))
+      if (isNaN(itemNum)) {
         return await client.sendText(chatId, '❌ Use um número para o item!');
+      }
 
       return await buyItem(categoryNum, itemNum);
     } catch (error) {

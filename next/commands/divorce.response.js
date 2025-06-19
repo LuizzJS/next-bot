@@ -2,7 +2,9 @@ export default {
   name: 'confirmar',
   aliases: ['retirar'],
   args: false,
-  description: 'Confirma ou cancela um pedido de divórcio.',
+  argsText: '',
+  description:
+    'Quem iniciou o pedido de divórcio pode confirmar ou cancelar o pedido.',
   group_only: false,
   bot_owner_only: false,
   group_admin_only: false,
@@ -11,8 +13,9 @@ export default {
     const commandName = message.body
       .trim()
       .split(' ')[0]
-      .slice(1)
+      .slice(prefix.length)
       .toLowerCase();
+
     if (!['confirmar', 'retirar'].includes(commandName)) {
       return client.reply(
         message.chatId,
@@ -55,11 +58,15 @@ export default {
           message.id
         );
 
-      // Somente o parceiro que iniciou o pedido pode confirmar ou retirar
-      if (!pendingDivorce.divorceRequester.equals(senderUser._id)) {
+      // Verifica se quem enviou é o iniciador do pedido
+      const isRequester = pendingDivorce.divorceRequester.equals(
+        senderUser._id
+      );
+
+      if (!isRequester) {
         return client.reply(
           message.chatId,
-          '❌ Apenas quem iniciou o pedido de divórcio pode confirmar ou retirar.',
+          '❌ Apenas quem iniciou o pedido de divórcio pode confirmar ou cancelar.',
           message.id
         );
       }
@@ -70,7 +77,8 @@ export default {
       const partnerUser = await User.findById(partnerId);
 
       if (commandName === 'confirmar') {
-        pendingDivorce.status = 'rejected'; // Marca casamento como terminado
+        // Confirma divórcio
+        pendingDivorce.status = 'divorced'; // marca como divorciado
         pendingDivorce.divorceStatus = 'confirmed';
         pendingDivorce.divorceRequester = null;
         await pendingDivorce.save();
@@ -85,6 +93,7 @@ export default {
       }
 
       if (commandName === 'retirar') {
+        // Cancela o pedido de divórcio
         pendingDivorce.divorceStatus = null;
         pendingDivorce.divorceRequester = null;
         await pendingDivorce.save();

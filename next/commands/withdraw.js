@@ -24,7 +24,7 @@ export default {
         message.id
       );
 
-    if (user.economy.bank < amount) {
+    if ((user.economy.bank || 0) < amount) {
       return client.reply(
         message.chatId,
         '❌ Saldo insuficiente no banco.',
@@ -33,19 +33,17 @@ export default {
     }
 
     try {
-      // Usa método removeBank para retirar do banco com registro
       await user.removeBank(amount, 'Saque do banco', 'withdraw');
-
-      // Adiciona no cash com registro
       await user.addMoney(amount, 'Saque do banco', 'withdraw');
+
+      // Recarrega o usuário para pegar os dados atualizados
+      await user.reload();
 
       return client.reply(
         message.chatId,
-        `✅ Saque de R$${amount.toFixed(
-          2
-        )} realizado com sucesso! Saldo cash: R$${user.economy.cash.toFixed(
-          2
-        )}.`,
+        `✅ Saque de R$${amount.toFixed(2)} realizado com sucesso!\n` +
+          `💵 Saldo carteira: R$${(user.economy.cash || 0).toFixed(2)}\n` +
+          `🏦 Saldo banco: R$${(user.economy.bank || 0).toFixed(2)}`,
         message.id
       );
     } catch (error) {

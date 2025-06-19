@@ -115,9 +115,19 @@ export default {
       if (!user) return null;
       if (!user.economy) user.economy = { cash: 0, bank: 0 };
       if (!user.stats)
-        user.stats = { jobsDone: 0, xp: 0, level: 1, totalEarned: 0 };
+        user.stats = {
+          jobsDone: 0,
+          xp: 0,
+          level: 1,
+          totalEarned: 0,
+          energy: 100,
+          health: 100,
+        };
       if (!user.cooldowns) user.cooldowns = {};
       if (!user.job) user.job = null;
+      // Garantir energy e health existam
+      user.stats.energy = user.stats.energy ?? 100;
+      user.stats.health = user.stats.health ?? 100;
       return user;
     };
 
@@ -155,6 +165,30 @@ export default {
           );
           await showJobsList(user.stats.level);
           return;
+        }
+
+        // Verifica energia e saúde mínima para trabalhar
+        const minEnergy = 20;
+        const minHealth = 30;
+
+        if (user.stats.energy < minEnergy) {
+          return await client.reply(
+            chatId,
+            `❌ Você está sem energia suficiente para trabalhar!\n` +
+              `Energia atual: ${user.stats.energy}/100\n` +
+              `Descanse para recuperar energia.`,
+            message.id
+          );
+        }
+
+        if (user.stats.health < minHealth) {
+          return await client.reply(
+            chatId,
+            `❌ Sua saúde está muito baixa para trabalhar!\n` +
+              `Saúde atual: ${user.stats.health}/100\n` +
+              `Cuide-se para recuperar saúde.`,
+            message.id
+          );
         }
 
         const jobConfig = Object.values(JOBS_CONFIG).find(
@@ -199,6 +233,13 @@ export default {
         user.stats.xp += jobConfig.xpPerJob;
         user.stats.totalEarned =
           (user.stats.totalEarned || 0) + jobConfig.salary;
+
+        // Consome energia e saúde
+        user.stats.energy -= 15; // ajuste o valor conforme quiser
+        if (user.stats.energy < 0) user.stats.energy = 0;
+
+        user.stats.health -= 5; // ajuste o valor conforme quiser
+        if (user.stats.health < 0) user.stats.health = 0;
 
         // Checar level up (pode subir múltiplos níveis)
         let leveledUp = false;
@@ -249,7 +290,9 @@ export default {
             `▸ Total realizado: ${user.stats.jobsDone} trabalhos\n` +
             `⏳ Próximo trabalho: ${formatCooldown(
               jobConfig.cooldownMinutes
-            )}` +
+            )}\n` +
+            `🔋 Energia restante: ${user.stats.energy}/100\n` +
+            `❤️ Saúde restante: ${user.stats.health}/100` +
             levelUpMsg,
           message.id
         );

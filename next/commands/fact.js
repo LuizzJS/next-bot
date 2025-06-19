@@ -8,7 +8,7 @@ Traduza o texto abaixo para português, mantendo a parte entre aspas exatamente 
 Texto para traduzir:
 "${text}"
 
-Responda apenas com a tradução, nada mais, o texto em ingles deve ser tirado.
+Responda apenas com a *tradução*, nada mais!!!
 `;
 
 export default {
@@ -20,11 +20,25 @@ export default {
   group_admin_only: false,
 
   execute: async ({ client, message }) => {
+    const apiNinjasKey = process.env.NJC_KEY;
+    if (!apiNinjasKey) {
+      return client.reply(
+        message.chatId,
+        '❌ Chave da API Api Ninjas não configurada.',
+        message.id
+      );
+    }
+
     try {
-      const apiNinjasKey = process.env.NJC_KEY;
+      // Faz a requisição para Api Ninjas
       const res = await fetch('https://api.api-ninjas.com/v1/facts', {
         headers: { 'X-Api-Key': apiNinjasKey },
       });
+
+      if (!res.ok) {
+        throw new Error(`Api Ninjas error: ${res.status} ${res.statusText}`);
+      }
+
       const data = await res.json();
 
       if (!data?.[0]?.fact) {
@@ -38,6 +52,7 @@ export default {
       const fact = data[0].fact;
       const contents = [createUserContent(translationPrompt(fact))];
 
+      // Chama Google Gemini AI para tradução
       const response = await ai.models.generateContent({
         model: 'gemini-2.0-flash',
         contents,

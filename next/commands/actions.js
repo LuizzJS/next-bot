@@ -19,7 +19,7 @@ const actionMap = {
   cuddle: { emoji: '🥰', caption: '{emoji} {sender} fez carinho em {target}!' },
   dance: { emoji: '💃', caption: '{emoji} {sender} dançou com {target}!' },
   facepalm: {
-    emoji: '🤦',
+    emoji: '🧖',
     caption: '{emoji} {sender} fez facepalm por {target}.',
   },
   feed: { emoji: '🍲', caption: '{emoji} {sender} alimentou {target}!' },
@@ -40,7 +40,7 @@ const actionMap = {
   kick: { emoji: '👢', caption: '{emoji} {sender} deu um chute em {target}!' },
   kiss: { emoji: '💋', caption: '{emoji} {sender} deu um beijo em {target}!' },
   laugh: { emoji: '😆', caption: '{emoji} {sender} riu de {target}!' },
-  lurk: { emoji: '🕵️‍♂️', caption: '{emoji} {sender} está espiando {target}.' },
+  lurk: { emoji: '🕵️', caption: '{emoji} {sender} está espiando {target}.' },
   nod: { emoji: '🤔', caption: '{emoji} {sender} concordou com {target}.' },
   nom: { emoji: '😋', caption: '{emoji} {sender} está comendo {target}!' },
   nope: { emoji: '🙅', caption: '{emoji} {sender} rejeitou {target}.' },
@@ -86,7 +86,6 @@ const actionMap = {
   yeet: { emoji: '🫠', caption: '{emoji} {sender} lançou {target} longe!' },
 };
 
-// Aliases estendidos incluindo ações e variantes em português
 const aliases = [
   ...Object.keys(actionMap),
   'bater',
@@ -126,6 +125,8 @@ export default {
   name: 'actions',
   aliases,
   args: false,
+  description:
+    'Envia um GIF interativo com outro membro. Ex: tapa, beijo, abraço e mais.',
   group_only: true,
 
   execute: async ({ client, message, args, prefix }) => {
@@ -136,7 +137,6 @@ export default {
         .slice(prefix.length)
         .toLowerCase();
 
-      // Ignora caso seja apenas o comando "actions"
       if (invoked === 'actions') return;
 
       const action = actionMap[invoked];
@@ -151,7 +151,7 @@ export default {
       const caption = action.caption
         .replace('{emoji}', action.emoji)
         .replace('{sender}', senderName)
-        .replace('{target}', '{target}'); // substituição será feita dentro do handler
+        .replace('{target}', '{target}');
 
       await sendActionGif({
         client,

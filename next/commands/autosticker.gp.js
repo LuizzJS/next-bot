@@ -1,10 +1,11 @@
 export default {
   name: 'gpauto',
   args: false,
-  description: 'Alterna o estado de auto sticker do grupo.',
+  description:
+    'Ativa ou desativa o envio automático de stickers em mensagens com mídia no grupo.',
   group_only: true,
   bot_owner_only: false,
-  admin_only: true,
+  group_admin_only: true,
 
   execute: async ({ client, message, args, prefix }) => {
     try {
@@ -12,6 +13,7 @@ export default {
 
       let group = await client.db.Group.findOne({ id: groupId });
 
+      // Caso o grupo ainda não esteja registrado
       if (!group) {
         const chat = await client.getChatById(groupId);
         const inviteLink = await client
@@ -24,7 +26,7 @@ export default {
             $set: {
               name: chat.name,
               inviteLink,
-              'settings.autoSticker': true, // ativado já aqui
+              'settings.autoSticker': true,
             },
           },
           { upsert: true, new: true }
@@ -32,23 +34,25 @@ export default {
 
         await client.reply(
           groupId,
-          '✅ Auto-sticker ativado neste grupo!',
+          '✅ O modo *auto-sticker* foi *ativado* neste grupo!',
           message.id
         );
         console.log(`[AUTO] Auto-sticker ativado para novo grupo: ${groupId}`);
         return;
       }
 
-      // Alterna o valor dentro de settings.autoSticker
+      // Alternar o valor atual
       group.settings.autoSticker = !group.settings.autoSticker;
       await group.save();
 
       const status = group.settings.autoSticker ? 'ativado' : 'desativado';
+
       await client.reply(
         groupId,
-        `✅ Auto-sticker ${status} neste grupo.`,
+        `✅ O modo *auto-sticker* foi *${status}* neste grupo.`,
         message.id
       );
+
       console.log(
         `[AUTO] Auto-sticker ${status} para grupo ${group.name} (${group.id})`
       );
@@ -56,7 +60,7 @@ export default {
       console.error('❌ Erro ao alternar auto-sticker:', err);
       await client.reply(
         message.chatId,
-        '❌ Erro ao alternar auto-sticker. Tente novamente.',
+        '❌ Ocorreu um erro ao alterar o modo auto-sticker. Tente novamente mais tarde.',
         message.id
       );
     }

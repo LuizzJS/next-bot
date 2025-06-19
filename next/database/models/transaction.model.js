@@ -24,6 +24,7 @@ const TransactionSchema = new mongoose.Schema({
       'system',
       'crime',
       'gift',
+      'reward',
       'deposit',
       'withdraw',
       'other',

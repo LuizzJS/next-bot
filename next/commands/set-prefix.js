@@ -39,10 +39,23 @@ export default {
       const group = await client.db.Group.findOne({ id: groupId });
       const oldPrefix = group?.settings?.prefix || '/';
 
+      if (!group) {
+        // Cria novo grupo se não existir
+        await client.db.Group.create({
+          id: groupId,
+          settings: { prefix: newPrefix },
+        });
+
+        return await client.reply(
+          groupId,
+          `✅ Prefixo definido para "${newPrefix}".\nAgora use comandos como: *${newPrefix}help*`,
+          message.id
+        );
+      }
+
       await client.db.Group.findOneAndUpdate(
         { id: groupId },
-        { $set: { 'settings.prefix': newPrefix } },
-        { upsert: true }
+        { $set: { 'settings.prefix': newPrefix } }
       );
 
       await client.reply(

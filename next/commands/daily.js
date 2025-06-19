@@ -1,6 +1,9 @@
 export default {
   name: 'daily',
-  description: 'Coleta sua recompensa diária',
+  args: false,
+  description:
+    'Coleta sua recompensa diária em dinheiro, com bônus para usuários VIP.',
+  argsText: '', // não requer argumentos
   group_only: false,
   bot_owner_only: false,
   group_admin_only: false,
@@ -33,7 +36,7 @@ export default {
         ? new Date(user.cooldowns.daily)
         : null;
 
-      // Cooldown de 24h (86.400.000 ms)
+      // Cooldown 24h
       if (lastClaim && now - lastClaim < 86400000) {
         const next = new Date(lastClaim.getTime() + 86400000);
         const mins = Math.ceil((next - now) / 60000);
@@ -45,7 +48,6 @@ export default {
         );
       }
 
-      // Ajuste: VIP está em config.premium, não em config.vip
       const vip = user.config?.premium || 'none';
       const multiplier = DAILY_CONFIG.multipliers[vip] || 1.0;
 
@@ -55,12 +57,10 @@ export default {
       );
       const reward = Math.round(baseReward * multiplier);
 
-      const balanceBefore = user.economy.cash || 0;
-
-      // Usa o método addMoney do modelo
+      // Adiciona dinheiro usando método do modelo
       await user.addMoney(reward, 'Recompensa diária', 'reward');
 
-      // Atualiza cooldown daily
+      // Atualiza cooldown
       user.cooldowns = user.cooldowns || {};
       user.cooldowns.daily = now;
       await user.save();

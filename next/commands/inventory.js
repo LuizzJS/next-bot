@@ -7,10 +7,10 @@ export default {
   async execute({ client, message }) {
     const { User } = client.db;
     const chatId = message.chatId;
-    const senderId = message.sender.id;
+    const senderId = message.sender.id.replace(/@c\.us$/, '');
 
     try {
-      const user = await User.findOne({ phone: senderId.replace('@c.us', '') });
+      const user = await User.findOne({ phone: senderId });
       if (!user) {
         return await client.sendText(
           chatId,
@@ -29,25 +29,29 @@ export default {
 
       // Agrupa itens por categoria
       const itemsByCategory = {};
-      user.inventory.forEach((item) => {
+      for (const item of user.inventory) {
         if (!itemsByCategory[item.category]) {
           itemsByCategory[item.category] = [];
         }
         itemsByCategory[item.category].push(item);
-      });
+      }
 
       // Monta mensagem organizada por categoria
       for (const [category, items] of Object.entries(itemsByCategory)) {
         msg += `📂 *${category.toUpperCase()}*\n`;
-        items.forEach((item) => {
+        for (const item of items) {
           msg += `  ▸ ${item.name} x${item.quantity}\n`;
-        });
+        }
         msg += '\n';
       }
 
-      msg += `💰 *Saldo atual:* R$${
-        user.economy?.cash?.toLocaleString('pt-BR') ?? '0'
-      }\n\n`;
+      // Formata saldo com separador de milhar e 2 casas decimais
+      const cashFormatted = (user.economy?.cash ?? 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      msg += `💰 *Saldo atual:* R$${cashFormatted}\n\n`;
       msg +=
         '💡 Use comandos para comprar ou usar itens. Para mais informações, digite *!ajuda* ou *!shop*';
 

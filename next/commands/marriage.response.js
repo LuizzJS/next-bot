@@ -8,6 +8,7 @@ export default {
   group_admin_only: false,
 
   execute: async ({ client, message, args, prefix }) => {
+    // Extrai o comando usado (aceitar ou recusar)
     const commandName = message.body
       .trim()
       .split(' ')[0]
@@ -15,7 +16,7 @@ export default {
       .toLowerCase();
 
     if (!['aceitar', 'recusar'].includes(commandName)) {
-      const lang = 'pt'; // padrão
+      const lang = 'pt'; // idioma padrão
       const invalidCmdMsg =
         client.messages?.errors?.invalidCommand?.[lang] ??
         `❌ Comando inválido. Use "${prefix}aceitar" para aceitar ou "${prefix}recusar" para recusar a proposta.`;
@@ -33,6 +34,7 @@ export default {
     const { User, Marriage } = client.db;
 
     try {
+      // Busca usuário no banco pelo phone extraído
       const senderPhone = senderId.replace('@c.us', '');
       const senderUser = await User.findOne({ phone: senderPhone });
 
@@ -43,10 +45,11 @@ export default {
         return client.reply(message.chatId, notRegisteredMsg, message.id);
       }
 
+      // Procura proposta pendente envolvendo o usuário, com parceiros populados
       const pendingMarriage = await Marriage.findOne({
         status: 'pending',
         $or: [{ partner1: senderUser._id }, { partner2: senderUser._id }],
-      }).populate('partner1 partner2');
+      }).populate('partner1 partner2 proposer');
 
       if (!pendingMarriage) {
         const noPendingMsg =
@@ -55,34 +58,44 @@ export default {
         return client.reply(message.chatId, noPendingMsg, message.id);
       }
 
-      // O parceiro que fez a proposta é o outro
-      const isSenderPartner1 = pendingMarriage.partner1._id.equals(
-        senderUser._id
-      );
-      const proposer = isSenderPartner1
-        ? pendingMarriage.partner2
-        : pendingMarriage.partner1;
+      // Verifica se o sender é o proponente - quem fez a proposta não pode aceitar ou recusar
+      if (
+        pendingMarriage.proposer &&
+        pendingMarriage.proposer._id.equals(senderUser._id)
+      ) {
+        return client.reply(
+          message.chatId,
+          '❌ Você não pode aceitar ou recusar sua própria proposta.',
+          message.id
+        );
+      }
+
+      // Define quem é o proponente para usar no texto
+      const proposerUser = pendingMarriage.proposer;
 
       if (commandName === 'aceitar') {
         pendingMarriage.status = 'accepted';
         pendingMarriage.marriedAt = new Date();
+        pendingMarriage.proposer = null;
         await pendingMarriage.save();
 
         const acceptedMsg =
           client.messages?.marriage?.accepted?.pt ??
           `💍 Você aceitou a proposta de casamento de *${
-            proposer.name || 'Desconhecido'
+            proposerUser?.name || 'Desconhecido'
           }*! Parabéns ao casal! ❤️`;
 
         return client.reply(message.chatId, acceptedMsg, message.id);
       } else {
+        // recusar
         pendingMarriage.status = 'rejected';
+        pendingMarriage.proposer = null;
         await pendingMarriage.save();
 
         const rejectedMsg =
           client.messages?.marriage?.rejected?.pt ??
           `❌ Você recusou a proposta de casamento de *${
-            proposer.name || 'Desconhecido'
+            proposerUser?.name || 'Desconhecido'
           }*. Desejamos que encontre alguém especial em breve!`;
 
         return client.reply(message.chatId, rejectedMsg, message.id);

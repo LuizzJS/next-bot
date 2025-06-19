@@ -110,16 +110,11 @@ const userSchema = new mongoose.Schema(
       health: { type: Number, default: 100, min: 0, max: 100 },
       happiness: { type: Number, default: 50, min: 0, max: 100 },
       energy: { type: Number, default: 100, min: 0, max: 100 },
-      strength: { type: Number, default: 10, min: 0, max: 100 },
-      intelligence: { type: Number, default: 10, min: 0, max: 100 },
     },
     job: {
       name: { type: String, default: null },
-      position: { type: String, default: null },
       salary: { type: Number, default: 0, min: 0 },
       startedAt: { type: Date, default: null },
-      performance: { type: Number, default: 0, min: 0, max: 100 },
-      company: { type: String, default: null },
     },
     privacy: {
       profileVisible: { type: Boolean, default: true },
@@ -239,6 +234,33 @@ userSchema.methods = {
     });
     await this.save();
     return this;
+  },
+
+  // Adiciona item ao inventário
+  async addItemToInventory({
+    itemId,
+    name,
+    category,
+    quantity = 1,
+    effect = {},
+  }) {
+    if (!this.inventory) this.inventory = [];
+
+    const existingItem = this.inventory.find((i) => i.itemId === itemId);
+
+    if (existingItem) {
+      existingItem.quantity += quantity;
+    } else {
+      this.inventory.push({
+        itemId,
+        name,
+        category,
+        quantity,
+        effect,
+      });
+    }
+
+    return this.save();
   },
 };
 

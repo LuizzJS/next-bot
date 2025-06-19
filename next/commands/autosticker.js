@@ -1,14 +1,22 @@
 export default {
   name: 'autosticker',
   args: false,
-  description: 'Alterna o estado de auto sticker do usuário.',
+  description:
+    'Ativa ou desativa o modo auto-sticker para você (responderá automaticamente com stickers).',
   group_only: false,
   bot_owner_only: false,
-  admin_only: false,
+  group_admin_only: false,
 
   execute: async ({ client, message, args, prefix }) => {
     try {
       const senderId = message.sender?.id || message.author || message.from;
+      if (!senderId) {
+        return await client.reply(
+          message.chatId,
+          '❌ Usuário não identificado.',
+          message.id
+        );
+      }
       const userPhone = senderId.replace('@c.us', '');
 
       let user = await client.db.User.findOne({ phone: userPhone });
@@ -16,14 +24,14 @@ export default {
       if (!user) {
         const sender = await client.getContact(senderId);
         user = await client.db.User.create({
-          name: sender?.pushname || 'Desconhecido',
+          name: sender?.pushname || sender?.verifiedName || 'Desconhecido',
           phone: userPhone,
           config: { autoSticker: true },
         });
 
         await client.reply(
           message.chatId,
-          `✅ Auto-sticker ativado.`,
+          '✅ Auto-sticker ativado para você!',
           message.id
         );
         console.log(
@@ -41,17 +49,19 @@ export default {
       await user.save();
 
       const status = user.config.autoSticker ? 'ativado' : 'desativado';
+
       await client.reply(
         message.chatId,
-        `✅ Auto-sticker ${status}.`,
+        `✅ Auto-sticker ${status} para você.`,
         message.id
       );
+
       console.log(`[AUTO] Auto-sticker ${status} para usuário ${userPhone}`);
     } catch (err) {
       console.error('❌ Erro ao alternar auto-sticker do usuário:', err);
       await client.reply(
         message.chatId,
-        '❌ Erro ao alternar auto-sticker. Tente novamente.',
+        '❌ Ocorreu um erro ao alternar auto-sticker. Tente novamente mais tarde.',
         message.id
       );
     }

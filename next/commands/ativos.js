@@ -6,7 +6,7 @@ export default {
   name: 'ativos',
   args: false,
   description:
-    'Mostra o ranking de atividade do grupo com estatísticas detalhadas.',
+    'Exibe o ranking de membros mais ativos do grupo com estatísticas de mensagens e última atividade.',
   group_only: true,
   bot_owner_only: false,
   group_admin_only: false,
@@ -29,7 +29,6 @@ export default {
         );
       }
 
-      // Transformar Map ou objeto em array com userId
       const activities = Object.entries(group.userActivities)
         .map(([userId, data]) => ({
           userId,
@@ -66,16 +65,22 @@ export default {
         (sum, a) => sum + a.messageCount,
         0
       );
-      const activeUsers = activities.length || 1; // evita divisão por zero
+      const activeUsers = activities.length || 1;
       const averageMessages = (totalMessages / activeUsers).toFixed(1);
 
       const medals = ['🥇', '🥈', '🥉'];
 
       let resposta =
-        `📈 *Estatísticas do grupo:*\n\n` +
-        `👥 Membros ativos: ${activeUsers}\n` +
-        `💬 Total de mensagens: ${totalMessages}\n` +
-        `📊 Média por usuário: ${averageMessages}\n\n`;
+        `📈 *Estatísticas do grupo:*
+
+` +
+        `👥 Membros ativos: ${activeUsers}
+` +
+        `💬 Total de mensagens: ${totalMessages}
+` +
+        `📊 Média por usuário: ${averageMessages}
+
+`;
 
       topMembers.slice(0, 10).forEach((user, index) => {
         resposta += `${medals[index] || `▫️${index + 1}.`} *${user.name}*:  ${

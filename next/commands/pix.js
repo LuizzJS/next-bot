@@ -44,14 +44,15 @@ export default {
         );
       }
 
-      const targetId = await client.findUser({
+      // Busca usuário alvo com findUser e acessa .id para id com @c.us
+      const targetUserObj = await client.findUser({
         chat: message.chatId,
         input: args[0],
         client,
         message,
       });
 
-      if (!targetId) {
+      if (!targetUserObj?.id) {
         return await client.reply(
           message.chatId,
           '❌ Usuário não encontrado.',
@@ -59,6 +60,7 @@ export default {
         );
       }
 
+      const targetId = targetUserObj.id;
       const targetPhone = targetId.replace('@c.us', '');
 
       if (targetPhone === senderPhone) {
@@ -69,11 +71,12 @@ export default {
         );
       }
 
+      // Busca ou cria o usuário alvo
       const targetUser = await User.findOneAndUpdate(
         { phone: targetPhone },
         {
           $setOnInsert: {
-            name: 'Desconhecido',
+            name: targetUserObj.name || 'Desconhecido',
             economy: { money: 0 },
           },
         },

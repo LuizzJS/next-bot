@@ -12,16 +12,16 @@ export default {
     const { sender, from, chatId } = message;
     const phone = (sender?.id || from || '').replace('@c.us', '');
 
-    // Função para formatar mensagens com placeholders
+    // Função para formatar mensagens com placeholders {key}
     const formatMsg = (template, data = {}) => {
       let msg = template;
       for (const [key, value] of Object.entries(data)) {
-        msg = msg.replace(new RegExp(key, 'g'), value);
+        const regex = new RegExp(`{${key}}`, 'g');
+        msg = msg.replace(regex, value);
       }
       return msg;
     };
 
-    // Mensagens padrão (expanda futuramente para multilíngue)
     const messages = {
       userNotFound:
         '❌ Seu usuário não foi encontrado. Envie uma mensagem normal primeiro.',
@@ -56,7 +56,10 @@ export default {
 
       await client.db.User.updateOne(
         { phone },
-        { $set: { authorized: true, registeredAt: new Date() } }
+        {
+          $set: { authorized: true },
+          $setOnInsert: { registeredAt: new Date() },
+        }
       );
 
       return await client.reply(chatId, messages.success, message.id);

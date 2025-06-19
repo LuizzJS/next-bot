@@ -1,12 +1,23 @@
 export default {
   name: 'blacklist',
   args: true,
+  argsText: '<usuário>',
   description: 'Adiciona ou remove um usuário da lista negra (blacklisted).',
   group_only: true,
   bot_owner_only: true,
-  group_admin_only: false, // só admin do grupo pode usar
+  group_admin_only: false,
+
   execute: async ({ client, message, args, prefix }) => {
     try {
+      if (!args.length) {
+        return client.reply(
+          message.chatId,
+          `❌ Argumentos insuficientes. Uso correto:\n` +
+            `*${prefix}blacklist ${this.argsText || '<argumentos>'}*`,
+          message.id
+        );
+      }
+
       const u = await client.findUser({
         chat: message.chat,
         input: args.join(' '),
@@ -22,7 +33,6 @@ export default {
         );
       }
 
-      // Procura o usuário no banco
       const user = await client.db.User.findOne({ phone: u.phone });
       if (!user) {
         return await client.reply(
@@ -32,7 +42,6 @@ export default {
         );
       }
 
-      // Alterna o campo blacklisted
       user.blacklisted = !user.blacklisted;
       await user.save();
 

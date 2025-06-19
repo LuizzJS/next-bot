@@ -16,11 +16,10 @@ export default {
       }
 
       // Limite máximo de transações mostradas
-      let limit = parseInt(args[0]) || 5;
+      let limit = parseInt(args[0], 10) || 5;
       if (limit < 1) limit = 5;
       if (limit > 10) limit = 10;
 
-      // Ordenar transações da mais recente para a mais antiga
       const transactions = (user.transactions || [])
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, limit);
@@ -32,7 +31,7 @@ export default {
         );
       }
 
-      let msg = '📊 *Histόrico financeiro: *\n\n';
+      let msg = '📊 *Histórico financeiro:*\n\n';
 
       transactions.forEach((trans) => {
         const typeIcon = trans.type === 'income' ? '⬆️' : '⬇️';
@@ -40,20 +39,24 @@ export default {
           ? new Date(trans.createdAt).toLocaleString('pt-BR')
           : 'Data desconhecida';
         const amountFormatted = Number(trans.amount).toLocaleString('pt-BR', {
+          style: 'currency',
+          currency: 'BRL',
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
 
         msg += `${typeIcon} *${trans.description || 'Sem descrição'}*\n`;
-        msg += `💰 R$${amountFormatted} • ${date}\n`;
+        msg += `💰 ${amountFormatted} • ${date}\n\n`;
       });
 
       const saldoFormatado = Number(user.economy.cash).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       });
 
-      msg += `💰 *Saldo atual:* R$${saldoFormatado}`;
+      msg += `💰 *Saldo atual:* ${saldoFormatado}`;
 
       await client.sendText(chatId, msg);
     } catch (error) {

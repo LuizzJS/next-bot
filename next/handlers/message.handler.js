@@ -213,7 +213,7 @@ const messageHandler = async ({ message, client }) => {
 
     try {
       // --- Reação: comando iniciado ---
-      await client.react(chatId, '⌛', message.id);
+      await client.react(message.id, '⌛');
 
       const startTime = Date.now();
 

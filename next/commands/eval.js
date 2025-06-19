@@ -19,10 +19,9 @@ export default {
       };
 
       const evaled = await (async () => {
-        const ctx = { client, message, args, print };
-        // Avalia o código em contexto assíncrono e isolado
+        const ctx = { client, message, args, print, console, process };
         return await eval(
-          `(async ({ client, message, args, print }) => { ${code} })`
+          `(async ({ client, message, args, print, console, process }) => { ${code} })`
         )(ctx);
       })();
 
@@ -33,17 +32,13 @@ export default {
 
       if (output.length > 3000) output = output.slice(0, 2997) + '...';
 
-      await client.reply(
-        message.sender.id,
-        `\n\`\`\`\n${output}\n\`\`\``,
-        message.id
-      );
+      await client.reply(chatId, `\`\`\`\n${output}\n\`\`\``, message.id);
     } catch (err) {
       let error = err.stack || err.toString();
       if (error.length > 3000) error = error.slice(0, 2997) + '...';
 
       await client.reply(
-        message.sender.id,
+        chatId,
         `❌ Erro:\n\`\`\`\n${error}\n\`\`\``,
         message.id
       );

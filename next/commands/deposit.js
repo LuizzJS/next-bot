@@ -1,7 +1,9 @@
 export default {
   name: 'deposito',
   args: true,
-  description: 'Deposita dinheiro do seu cash para o banco.',
+  argsText: '<valor>',
+  description:
+    'Deposita uma quantia de dinheiro do seu saldo em cash para o banco.',
   group_only: false,
   bot_owner_only: false,
   group_admin_only: false,
@@ -44,7 +46,7 @@ export default {
         message.chatId,
         `✅ Depósito de R$${amount.toFixed(
           2
-        )} realizado com sucesso! Saldo bank: R$${user.economy.bank.toFixed(
+        )} realizado com sucesso! Saldo no banco: R$${user.economy.bank.toFixed(
           2
         )}.`,
         message.id
