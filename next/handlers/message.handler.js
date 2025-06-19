@@ -1,15 +1,5 @@
 import mediaHandler from './media.handler.js';
 
-const CACHE_CONFIG = {
-  PREFIX_TTL: 5 * 60 * 1000,
-  GROUP_DATA_TTL: 10 * 60 * 1000,
-};
-
-const cache = {
-  prefixes: new Map(),
-  groupData: new Map(),
-};
-
 const messageHandler = async ({ message, client }) => {
   const { body, chatId } = message;
   const isGroup = chatId?.endsWith('@g.us');
@@ -38,81 +28,76 @@ const messageHandler = async ({ message, client }) => {
     }"`
   );
 
-  // --- Obter prefixo com cache ---
+  // --- Obter prefixo direto do DB (sem cache) ---
   let prefix = '/';
   if (isGroup) {
-    const cacheKey = chatId.replace(/\./g, '_');
-    const cachedPrefix = cache.prefixes.get(cacheKey);
-    if (cachedPrefix && cachedPrefix.expires > Date.now()) {
-      prefix = cachedPrefix.value;
-    } else {
+    try {
       const group = await client.db.Group.findOne({ id: chatId })
         .select('settings.prefix')
         .lean();
       prefix = group?.settings?.prefix || client.prefix || '/';
-      cache.prefixes.set(cacheKey, {
-        value: prefix,
-        expires: Date.now() + CACHE_CONFIG.PREFIX_TTL,
-      });
+    } catch (error) {
+      console.error('Erro ao buscar prefixo do grupo:', error);
+      prefix = client.prefix || '/';
     }
   } else {
     prefix = client.prefix || '/';
   }
 
-  // --- Atualizar dados grupo ---
+  // --- Atualizar dados do grupo no DB (sem cache) ---
   let groupData = null;
   if (isGroup) {
-    const cacheKey = chatId.replace(/\./g, '_');
-    const cachedGroup = cache.groupData.get(cacheKey);
-    if (cachedGroup && cachedGroup.expires > Date.now()) {
-      groupData = cachedGroup.data;
-    } else {
-      try {
-        const groupInfo = await client.getChatById(chatId);
-        const inviteLink = await client
-          .getGroupInviteLink(chatId)
-          .catch(() => null);
-        const participants = await client
-          .getGroupMembers(chatId)
-          .catch(() => []);
+    try {
+      const groupInfo = await client.getChatById(chatId);
+      const inviteLink = await client
+        .getGroupInviteLink(chatId)
+        .catch(() => null);
+      const participants = await client.getGroupMembers(chatId).catch(() => []);
 
-        const updateData = {
-          name: groupInfo.name,
-          inviteLink: inviteLink || '',
-          'members.count': participants.length,
-          'stats.lastActivity': new Date(),
-        };
+      const updateData = {
+        name: groupInfo.name,
+        inviteLink: inviteLink || '',
+        'members.count': participants.length,
+        'stats.lastActivity': new Date(),
+      };
 
-        const group = await client.db.Group.findOneAndUpdate(
+      // Atualiza ou cria grupo no DB
+      groupData = await client.db.Group.findOneAndUpdate(
+        { id: chatId },
+        {
+          $set: updateData,
+          $setOnInsert: {
+            settings: {
+              autoSticker: false,
+              prefix: '/',
+              welcomeMessage: 'Bem-vindo(a), {user}!',
+            },
+            createdAt: new Date(),
+            userActivities: new Map(),
+          },
+        },
+        { upsert: true, new: true, runValidators: true }
+      );
+
+      // Registrar atividade do usuário no grupo
+      if (groupData.recordUserMessage) {
+        await groupData.recordUserMessage(phoneNumber);
+      } else {
+        // Se não existir método, atualiza direto aqui
+        const key = `userActivities.${phoneNumber}`;
+        await client.db.Group.updateOne(
           { id: chatId },
           {
-            $set: updateData,
-            $setOnInsert: {
-              settings: {
-                autoSticker: false,
-                prefix: '/',
-                welcomeMessage: 'Bem-vindo(a), {user}!',
-              },
-              createdAt: new Date(),
-              userActivities: new Map(),
+            $inc: { [`${key}.messageCount`]: 1 },
+            $set: {
+              [`${key}.lastActivity`]: new Date(),
+              [`${key}.userId`]: phoneNumber,
             },
-          },
-          { upsert: true, new: true, runValidators: true }
+          }
         );
-
-        if (group.recordUserMessage) {
-          await group.recordUserMessage(phoneNumber);
-        }
-
-        cache.groupData.set(cacheKey, {
-          data: group,
-          expires: Date.now() + CACHE_CONFIG.GROUP_DATA_TTL,
-        });
-
-        groupData = group;
-      } catch (error) {
-        console.error('Erro ao atualizar dados do grupo:', error);
       }
+    } catch (error) {
+      console.error('Erro ao atualizar dados do grupo:', error);
     }
   }
 
@@ -184,8 +169,8 @@ const messageHandler = async ({ message, client }) => {
     }
     if (command.group_admin_only) {
       const chat = await client.getChatById(chatId);
-      const participant = chat?.participants.find(
-        (p) => p.id._serialized === senderId
+      const participant = chat?.groupMetadata?.participants.find(
+        (p) => p.id === senderId
       );
       if (!participant?.isAdmin && !participant?.isSuperAdmin) {
         return client.reply(

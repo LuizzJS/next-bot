@@ -3,9 +3,34 @@ import mongoose from 'mongoose';
 const TransactionSchema = new mongoose.Schema({
   type: {
     type: String,
-    enum: ['income', 'expense', 'transfer', 'payment', 'reward', 'fine'],
+    enum: [
+      'income',
+      'expense',
+      'transfer',
+      'payment',
+      'reward',
+      'fine',
+      'deposit',
+      'withdraw',
+    ],
     required: true,
   },
+  source: {
+    type: String,
+    enum: [
+      'work',
+      'shop',
+      'transfer',
+      'system',
+      'crime',
+      'gift',
+      'deposit',
+      'withdraw',
+      'other',
+    ],
+    required: true,
+  },
+
   amount: {
     type: Number,
     required: true,
@@ -18,11 +43,6 @@ const TransactionSchema = new mongoose.Schema({
     required: true,
     trim: true,
     maxlength: 100,
-  },
-  source: {
-    type: String,
-    enum: ['work', 'shop', 'transfer', 'system', 'crime', 'gift', 'other'],
-    required: true,
   },
   relatedUser: {
     type: mongoose.Schema.Types.ObjectId,

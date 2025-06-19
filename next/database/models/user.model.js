@@ -41,21 +41,15 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-
-    // Sistema de reputação e moderação
     reputation: {
       score: { type: Number, default: 0, min: -100, max: 100 },
       lastGiven: { type: Date, default: null },
     },
-
-    // Dados de atividade
     activity: {
       lastSeen: { type: Date, default: Date.now },
       messagesSent: { type: Number, default: 0 },
       commandsUsed: { type: Number, default: 0 },
     },
-
-    // Configurações do usuário
     config: {
       ratio: {
         type: String,
@@ -79,44 +73,19 @@ const userSchema = new mongoose.Schema(
         default: false,
       },
     },
-
-    // Sistema econômico completo
     economy: {
-      cash: {
-        type: Number,
-        default: 100,
-        min: 0,
-        get: (v) => Math.round(v),
-        set: (v) => Math.round(v),
-      },
-      bank: {
-        type: Number,
-        default: 0,
-        min: 0,
-        get: (v) => Math.round(v),
-        set: (v) => Math.round(v),
-      },
-      debt: {
-        type: Number,
-        default: 0,
-        min: 0,
-        get: (v) => Math.round(v),
-        set: (v) => Math.round(v),
-      },
+      cash: { type: Number, default: 100, min: 0 },
+      bank: { type: Number, default: 0, min: 0 },
+      debt: { type: Number, default: 0, min: 0 },
       totalEarned: { type: Number, default: 0, min: 0 },
       totalSpent: { type: Number, default: 0, min: 0 },
       lastDaily: { type: Date, default: null },
       lastWork: { type: Date, default: null },
-
-      // Histórico de transações
-      transactions: {
-        type: [TransactionSchema],
-        default: [],
-        select: false,
-      },
     },
-
-    // Inventário aprimorado
+    transactions: {
+      type: [TransactionSchema],
+      default: [],
+    },
     inventory: [
       {
         itemId: { type: String, required: true },
@@ -132,8 +101,6 @@ const userSchema = new mongoose.Schema(
         attributes: mongoose.Schema.Types.Mixed,
       },
     ],
-
-    // Estatísticas detalhadas
     stats: {
       level: { type: Number, default: 1, min: 1, max: 100 },
       xp: { type: Number, default: 0, min: 0 },
@@ -146,8 +113,6 @@ const userSchema = new mongoose.Schema(
       strength: { type: Number, default: 10, min: 0, max: 100 },
       intelligence: { type: Number, default: 10, min: 0, max: 100 },
     },
-
-    // Sistema de emprego aprimorado
     job: {
       name: { type: String, default: null },
       position: { type: String, default: null },
@@ -156,13 +121,9 @@ const userSchema = new mongoose.Schema(
       performance: { type: Number, default: 0, min: 0, max: 100 },
       company: { type: String, default: null },
     },
-
-    // Privacidade
     privacy: {
       profileVisible: { type: Boolean, default: true },
     },
-
-    // Sistema de missões
     quests: [
       {
         questId: { type: String, required: true },
@@ -177,309 +138,109 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    toJSON: {
-      getters: true,
-      virtuals: true,
-    },
-    toObject: {
-      getters: true,
-      virtuals: true,
-    },
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
-// Índices para melhor performance
-userSchema.index({ 'config.premium': 1, 'config.role': 1 });
-userSchema.index({ 'economy.cash': -1 });
-userSchema.index({ 'stats.level': -1 });
-userSchema.index({ phone: 1, authorized: 1 });
-userSchema.index({ 'economy.transactions.createdAt': -1 });
-userSchema.index({ 'economy.transactions.source': 1 });
-
-// Middleware para pré-salvamento
-userSchema.pre('save', function (next) {
-  // Garantir que valores monetários sejam inteiros
-  if (this.isModified('economy')) {
-    this.economy.cash = Math.round(this.economy.cash);
-    this.economy.bank = Math.round(this.economy.bank);
-    this.economy.debt = Math.round(this.economy.debt);
-  }
-
-  // Atualizar última vez visto
-  if (this.isModified()) {
-    this.activity.lastSeen = new Date();
-  }
-
-  next();
-});
-
-// Métodos do usuário
 userSchema.methods = {
-  // Adicionar dinheiro com registro de transação
   async addMoney(
     amount,
     description = 'Depósito',
     source = 'system',
     metadata = {}
   ) {
-    const balanceBefore = this.economy.cash;
-    const roundedAmount = Math.round(amount);
-
-    this.economy.cash += roundedAmount;
-    this.economy.totalEarned += roundedAmount;
-
-    this.economy.transactions.push({
+    const rounded = Math.round(amount);
+    const before = this.economy.cash;
+    this.economy.cash += rounded;
+    this.economy.totalEarned += rounded;
+    this.transactions.push({
       type: 'income',
-      amount: roundedAmount,
+      amount: rounded,
       description,
       source,
-      balanceBefore,
+      balanceBefore: before,
       balanceAfter: this.economy.cash,
       metadata,
       createdAt: new Date(),
     });
-
     await this.save();
     return this;
   },
 
-  // Remover dinheiro com registro de transação
   async removeMoney(
     amount,
     description = 'Pagamento',
     source = 'system',
     metadata = {}
   ) {
-    const roundedAmount = Math.round(amount);
-
-    if (this.economy.cash < roundedAmount) {
-      throw new Error('Saldo insuficiente');
-    }
-
-    const balanceBefore = this.economy.cash;
-    this.economy.cash -= roundedAmount;
-    this.economy.totalSpent += roundedAmount;
-
-    this.economy.transactions.push({
+    const rounded = Math.round(amount);
+    if (this.economy.cash < rounded) throw new Error('Saldo insuficiente');
+    const before = this.economy.cash;
+    this.economy.cash -= rounded;
+    this.economy.totalSpent += rounded;
+    this.transactions.push({
       type: 'expense',
-      amount: roundedAmount,
+      amount: rounded,
       description,
       source,
-      balanceBefore,
+      balanceBefore: before,
       balanceAfter: this.economy.cash,
       metadata,
       createdAt: new Date(),
     });
-
     await this.save();
     return this;
   },
 
-  // Transferir dinheiro para outro usuário
-  async transferMoney(targetUser, amount, description = 'Transferência') {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const roundedAmount = Math.round(amount);
-
-      // Remover do usuário origem
-      await this.removeMoney(
-        roundedAmount,
-        `Transferência para ${targetUser.name}`,
-        'transfer',
-        { targetUserId: targetUser._id }
-      );
-
-      // Adicionar ao usuário destino
-      await targetUser.addMoney(
-        roundedAmount,
-        `Transferência de ${this.name}`,
-        'transfer',
-        { sourceUserId: this._id }
-      );
-
-      await session.commitTransaction();
-      return true;
-    } catch (error) {
-      await session.abortTransaction();
-      throw error;
-    } finally {
-      session.endSession();
-    }
-  },
-
-  // Obter histórico de transações com filtros
-  async getTransactionHistory({
-    limit = 10,
-    skip = 0,
-    type,
-    source,
-    startDate,
-    endDate,
-  } = {}) {
-    const filters = {};
-
-    if (type) filters.type = type;
-    if (source) filters.source = source;
-    if (startDate || endDate) {
-      filters.createdAt = {};
-      if (startDate) filters.createdAt.$gte = new Date(startDate);
-      if (endDate) filters.createdAt.$lte = new Date(endDate);
-    }
-
-    // Usando aggregation para filtros complexos
-    const result = await this.model('User').aggregate([
-      { $match: { _id: this._id } },
-      { $unwind: '$economy.transactions' },
-      { $match: { 'economy.transactions': { $exists: true, ...filters } } },
-      { $sort: { 'economy.transactions.createdAt': -1 } },
-      { $skip: skip },
-      { $limit: limit },
-      {
-        $group: {
-          _id: '$_id',
-          transactions: { $push: '$economy.transactions' },
-          total: { $sum: 1 },
-        },
-      },
-    ]);
-
-    return {
-      transactions: result[0]?.transactions || [],
-      total: result[0]?.total || 0,
-    };
-  },
-
-  // Obter resumo financeiro
-  async getFinancialSummary() {
-    const result = await this.model('User').aggregate([
-      { $match: { _id: this._id } },
-      {
-        $project: {
-          totalCash: '$economy.cash',
-          totalBank: '$economy.bank',
-          totalDebt: '$economy.debt',
-          totalEarned: '$economy.totalEarned',
-          totalSpent: '$economy.totalSpent',
-          netWorth: {
-            $subtract: [
-              { $add: ['$economy.cash', '$economy.bank'] },
-              '$economy.debt',
-            ],
-          },
-          incomeBySource: {
-            $reduce: {
-              input: '$economy.transactions',
-              initialValue: {},
-              in: {
-                $cond: [
-                  { $eq: ['$$this.type', 'income'] },
-                  {
-                    $mergeObjects: [
-                      '$$value',
-                      {
-                        [$$this.source]: {
-                          $add: [
-                            { $ifNull: [`$$value[$$this.source]`, 0] },
-                            $$this.amount,
-                          ],
-                        },
-                      },
-                    ],
-                  },
-                  '$$value',
-                ],
-              },
-            },
-          },
-          expenseBySource: {
-            $reduce: {
-              input: '$economy.transactions',
-              initialValue: {},
-              in: {
-                $cond: [
-                  { $eq: ['$$this.type', 'expense'] },
-                  {
-                    $mergeObjects: [
-                      '$$value',
-                      {
-                        [$$this.source]: {
-                          $add: [
-                            { $ifNull: [`$$value[$$this.source]`, 0] },
-                            $$this.amount,
-                          ],
-                        },
-                      },
-                    ],
-                  },
-                  '$$value',
-                ],
-              },
-            },
-          },
-        },
-      },
-    ]);
-
-    return result[0] || {};
-  },
-
-  // Adicionar item ao inventário
-  async addItem(itemId, name, category, quantity = 1, attributes = {}) {
-    const existingItem = this.inventory.find((item) => item.itemId === itemId);
-
-    if (existingItem) {
-      existingItem.quantity += quantity;
-    } else {
-      this.inventory.push({
-        itemId,
-        name,
-        category,
-        quantity,
-        obtainedAt: new Date(),
-        attributes,
-      });
-    }
-
+  async addBank(
+    amount,
+    description = 'Depósito bancário',
+    source = 'system',
+    metadata = {}
+  ) {
+    const rounded = Math.round(amount);
+    const before = this.economy.bank;
+    this.economy.bank += rounded;
+    this.transactions.push({
+      type: 'income',
+      amount: rounded,
+      description,
+      source,
+      balanceBefore: before,
+      balanceAfter: this.economy.bank,
+      metadata,
+      createdAt: new Date(),
+    });
     await this.save();
     return this;
   },
 
-  // Remover item do inventário
-  async removeItem(itemId, quantity = 1) {
-    const itemIndex = this.inventory.findIndex(
-      (item) => item.itemId === itemId
-    );
-
-    if (itemIndex === -1) {
-      throw new Error('Item não encontrado no inventário');
-    }
-
-    const item = this.inventory[itemIndex];
-
-    if (item.quantity < quantity) {
-      throw new Error('Quantidade insuficiente no inventário');
-    }
-
-    item.quantity -= quantity;
-
-    if (item.quantity <= 0) {
-      this.inventory.splice(itemIndex, 1);
-    }
-
+  async removeBank(
+    amount,
+    description = 'Retirada bancária',
+    source = 'system',
+    metadata = {}
+  ) {
+    const rounded = Math.round(amount);
+    if (this.economy.bank < rounded)
+      throw new Error('Saldo bancário insuficiente');
+    const before = this.economy.bank;
+    this.economy.bank -= rounded;
+    this.transactions.push({
+      type: 'expense',
+      amount: rounded,
+      description,
+      source,
+      balanceBefore: before,
+      balanceAfter: this.economy.bank,
+      metadata,
+      createdAt: new Date(),
+    });
     await this.save();
     return this;
   },
 };
-
-// Virtuals
-userSchema.virtual('lastTransaction').get(function () {
-  if (this.economy.transactions && this.economy.transactions.length > 0) {
-    return this.economy.transactions[this.economy.transactions.length - 1];
-  }
-  return null;
-});
 
 userSchema.virtual('netWorth').get(function () {
   return this.economy.cash + this.economy.bank - this.economy.debt;

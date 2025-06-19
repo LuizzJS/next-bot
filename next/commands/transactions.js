@@ -21,7 +21,7 @@ export default {
       if (limit > 10) limit = 10;
 
       // Ordenar transações da mais recente para a mais antiga
-      const transactions = (user.economy.transactions || [])
+      const transactions = (user.transactions || [])
         .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .slice(0, limit);
 
@@ -32,12 +32,12 @@ export default {
         );
       }
 
-      let msg = '📊 *HISTÓRICO FINANCEIRO* 📊\n\n';
+      let msg = '📊 *Histόrico financeiro: *\n\n';
 
       transactions.forEach((trans) => {
         const typeIcon = trans.type === 'income' ? '⬆️' : '⬇️';
         const date = trans.createdAt
-          ? new Date(trans.createdAt).toLocaleDateString('pt-BR')
+          ? new Date(trans.createdAt).toLocaleString('pt-BR')
           : 'Data desconhecida';
         const amountFormatted = Number(trans.amount).toLocaleString('pt-BR', {
           minimumFractionDigits: 2,
@@ -46,7 +46,6 @@ export default {
 
         msg += `${typeIcon} *${trans.description || 'Sem descrição'}*\n`;
         msg += `💰 R$${amountFormatted} • ${date}\n`;
-        msg += `📌 ${trans.source || 'Fonte desconhecida'}\n\n`;
       });
 
       const saldoFormatado = Number(user.economy.cash).toLocaleString('pt-BR', {

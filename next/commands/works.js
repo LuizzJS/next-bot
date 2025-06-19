@@ -296,7 +296,6 @@ export default {
             `🔍 *Emprego não encontrado!*\nO número ${jobNumber} não é válido.\nUse *${prefix}works* para ver a lista completa.`,
             message.id
           );
-          return;
         }
 
         const requiredLevel = selectedJob.requirements.includes('Nível')

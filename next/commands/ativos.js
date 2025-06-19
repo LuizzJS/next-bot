@@ -29,14 +29,18 @@ export default {
         );
       }
 
-      // Converte objeto para array e ordena por messageCount desc
-      const activities = Object.values(group.userActivities).sort(
-        (a, b) => b.messageCount - a.messageCount
-      );
+      // Transformar Map ou objeto em array com userId
+      const activities = Object.entries(group.userActivities)
+        .map(([userId, data]) => ({
+          userId,
+          messageCount: data.messageCount || 0,
+          lastActivity: data.lastActivity || null,
+        }))
+        .sort((a, b) => b.messageCount - a.messageCount);
 
       const topMembers = await Promise.all(
         activities.slice(0, 15).map(async (activity) => {
-          const userId = activity.userId || activity.user; // ajuste conforme seu schema
+          const userId = activity.userId;
           try {
             const contact = await client.getContact(userId + '@c.us');
             return {

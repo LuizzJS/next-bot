@@ -29,7 +29,7 @@ const GroupSchema = new mongoose.Schema(
     inviteLink: {
       type: String,
       validate: {
-        validator: (v) => v.startsWith('https://chat.whatsapp.com/'),
+        validator: (v) => !v || v.startsWith('https://chat.whatsapp.com/'),
         message: 'Link de convite inválido',
       },
     },

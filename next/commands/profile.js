@@ -41,7 +41,7 @@ export default {
 
 // Helper functions
 async function getUserProfile(client, User, message, args, senderId) {
-  const { mentionedJidList } = message;
+  const { mentionedJidList = [] } = message;
 
   // Busca usuário mencionado ou padrão (sender)
   if (args.length > 0 || mentionedJidList.length > 0) {
@@ -88,6 +88,8 @@ async function createNewUser(User, phone, contact) {
     economy: {
       cash: 100,
       bank: 0,
+      totalEarned: 0,
+      totalSpent: 0,
       lastDaily: null,
       lastWork: null,
     },
@@ -95,6 +97,7 @@ async function createNewUser(User, phone, contact) {
       level: 1,
       xp: 0,
       streak: 0,
+      itemsBought: 0,
     },
     activity: {
       lastSeen: new Date(),
@@ -109,9 +112,16 @@ async function createBasicUser(User, phone) {
   return await User.create({
     phone,
     name: 'Usuário',
-    economy: { cash: 100, bank: 0 },
-    stats: { level: 1, xp: 0 },
-    activity: { lastSeen: new Date() },
+    economy: {
+      cash: 100,
+      bank: 0,
+      totalEarned: 0,
+      totalSpent: 0,
+      lastDaily: null,
+      lastWork: null,
+    },
+    stats: { level: 1, xp: 0, streak: 0, itemsBought: 0 },
+    activity: { lastSeen: new Date(), commandsUsed: 0, messagesSent: 0 },
     registeredAt: new Date(),
   });
 }
