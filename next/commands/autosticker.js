@@ -2,31 +2,32 @@ export default {
   name: 'autosticker',
   args: false,
   description: 'Alterna o estado de auto sticker do usuário.',
-  group_only: true,
+  group_only: false,
   bot_owner_only: false,
-  admin_only: true,
+  admin_only: false,
 
   execute: async ({ client, message, args, prefix }) => {
     try {
-      const sender_id = message.sender?.id || message.author || message.from;
-      const user_phone = sender_id.replace('@c.us', '');
+      const senderId = message.sender?.id || message.author || message.from;
+      const userPhone = senderId.replace('@c.us', '');
 
-      let user = await client.db.User.findOne({ phone: user_phone });
+      let user = await client.db.User.findOne({ phone: userPhone });
 
       if (!user) {
-        const sender = await client.getContact(sender_id);
+        const sender = await client.getContact(senderId);
         user = await client.db.User.create({
-          name: sender.pushname || 'Desconhecido',
-          phone: user_phone,
+          name: sender?.pushname || 'Desconhecido',
+          phone: userPhone,
+          config: { autoSticker: true },
         });
 
-        await client.sendText(
+        await client.reply(
           message.chatId,
-          `✅ Auto-sticker ativado para @${user_phone}.`,
-          { mentions: [sender_id] },
+          `✅ Auto-sticker ativado.`,
+          message.id
         );
         console.log(
-          `[AUTO] Auto-sticker ativado para novo usuário: ${user_phone}`,
+          `[AUTO] Auto-sticker ativado para novo usuário: ${userPhone}`
         );
         return;
       }
@@ -36,20 +37,22 @@ export default {
         ...user.config,
         autoSticker: !current,
       };
+
       await user.save();
 
       const status = user.config.autoSticker ? 'ativado' : 'desativado';
-      await client.sendText(
+      await client.reply(
         message.chatId,
-        `✅ Auto-sticker ${status} para @${user_phone}.`,
-        { mentions: [sender_id] },
+        `✅ Auto-sticker ${status}.`,
+        message.id
       );
-      console.log(`[AUTO] Auto-sticker ${status} para usuário ${user_phone}`);
+      console.log(`[AUTO] Auto-sticker ${status} para usuário ${userPhone}`);
     } catch (err) {
       console.error('❌ Erro ao alternar auto-sticker do usuário:', err);
-      await client.sendText(
+      await client.reply(
         message.chatId,
         '❌ Erro ao alternar auto-sticker. Tente novamente.',
+        message.id
       );
     }
   },

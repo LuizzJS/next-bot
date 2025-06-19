@@ -1,7 +1,8 @@
 export default {
   name: 'divorce',
+  aliases: ['divorciar', 'divorcio', 'divórcio'],
   args: false,
-  description: 'Iniciar pedido de divórcio (global)',
+  description: 'Inicia um pedido de divórcio.',
   group_only: false,
   bot_owner_only: false,
   group_admin_only: false,
@@ -9,29 +10,42 @@ export default {
   execute: async ({ client, message, args, prefix }) => {
     const senderId = message.sender?.id || message.sender;
     if (!senderId)
-      return client.sendText(message.chatId, '❌ Usuário não identificado');
+      return client.reply(
+        message.chatId,
+        '❌ Usuário não identificado',
+        message.id
+      );
 
     try {
-      const { Marriage } = client.db;
+      const { Marriage, User } = client.db;
 
-      const senderUser = await client.db.User.findOne({
+      const senderUser = await User.findOne({
         phone: senderId.replace('@c.us', ''),
       });
       if (!senderUser)
-        return client.sendText(message.chatId, '❌ Usuário não registrado');
+        return client.reply(
+          message.chatId,
+          '❌ Usuário não registrado',
+          message.id
+        );
 
       const marriage = await Marriage.findOne({
         $or: [{ partner1: senderUser._id }, { partner2: senderUser._id }],
         status: 'accepted',
-      });
+      }).populate('partner1 partner2 divorceRequester');
 
       if (!marriage)
-        return client.sendText(message.chatId, '❌ Você não está casado(a)');
+        return client.reply(
+          message.chatId,
+          '❌ Você não está casado(a)',
+          message.id
+        );
 
       if (marriage.divorceStatus === 'pending') {
-        return client.sendText(
+        return client.reply(
           message.chatId,
           '❌ Já existe um pedido de divórcio pendente.',
+          message.id
         );
       }
 
@@ -39,22 +53,24 @@ export default {
       marriage.divorceRequester = senderUser._id;
       await marriage.save();
 
-      const partnerId = marriage.partner1.equals(senderUser._id)
-        ? marriage.partner2
-        : marriage.partner1;
-      const partnerUser = await client.db.User.findById(partnerId);
+      const partnerId = marriage.getPartnerOf(senderUser._id);
+      const partnerUser = await User.findById(partnerId);
 
-      await client.sendText(
+      await client.reply(
         message.chatId,
         `⚠️ Pedido de divórcio iniciado entre ${senderUser?.name} e ${
           partnerUser?.name || 'seu parceiro(a)'
-        }. O outro parceiro pode "${prefix}confirmar" ou "${prefix}retirar".`,
+        }.\n` +
+          `Você deve responder com:\n` +
+          `*${prefix}confirmar* para confirmar o divórcio, ou *${prefix}retirar* para cancelar o pedido.`,
+        message.id
       );
     } catch (error) {
       console.error('Erro no comando divorce:', error);
-      return client.sendText(
+      return client.reply(
         message.chatId,
         '❌ Ocorreu um erro ao iniciar o pedido de divórcio. Tente novamente mais tarde.',
+        message.id
       );
     }
   },

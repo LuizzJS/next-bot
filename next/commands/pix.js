@@ -10,7 +10,8 @@ export default {
   name: 'pix',
   aliases: [],
   args: true,
-  description: 'Envia Pix imediato ou agendado.',
+  description:
+    'Faça uma transferência via PIX para outro usuário (imediata ou agendada).',
   group_only: true,
   bot_owner_only: false,
   group_admin_only: false,
@@ -21,28 +22,28 @@ export default {
       const senderId = message.sender?.id || message.sender;
       const senderPhone = senderId.replace('@c.us', '');
 
-      // Tenta encontrar remetente, se não existir, cria automaticamente
       let senderUser = await User.findOne({ phone: senderPhone });
       if (!senderUser) {
         senderUser = await User.create({
           phone: senderPhone,
           name: 'Usuário recém-registrado',
-          economy: { money: 1000 }, // Pode ajustar saldo inicial se quiser
+          economy: { money: 1000 },
         });
-        await client.sendText(
+        await client.reply(
           message.chatId,
           '⚠️ Você não estava registrado, mas foi criado automaticamente com saldo inicial.',
+          message.id
         );
       }
 
       if (args.length < 2) {
-        return client.sendText(
+        return await client.reply(
           message.chatId,
           '❌ Uso correto: /pix @alvo valor [tempo]',
+          message.id
         );
       }
 
-      // target aqui é string tipo '92381923@c.us'
       const targetId = await client.findUser({
         chat: message.chatId,
         input: args[0],
@@ -51,19 +52,23 @@ export default {
       });
 
       if (!targetId) {
-        return client.sendText(message.chatId, '❌ Usuário não encontrado.');
+        return await client.reply(
+          message.chatId,
+          '❌ Usuário não encontrado.',
+          message.id
+        );
       }
 
       const targetPhone = targetId.replace('@c.us', '');
 
       if (targetPhone === senderPhone) {
-        return client.sendText(
+        return await client.reply(
           message.chatId,
           '❌ Você não pode enviar Pix para si mesmo.',
+          message.id
         );
       }
 
-      // Busca ou cria destinatário
       const targetUser = await User.findOneAndUpdate(
         { phone: targetPhone },
         {
@@ -72,17 +77,25 @@ export default {
             economy: { money: 0 },
           },
         },
-        { upsert: true, new: true },
+        { upsert: true, new: true }
       );
 
       const amount = parseInt(args[1], 10);
       if (isNaN(amount) || amount <= 0) {
-        return client.sendText(message.chatId, '❌ Valor inválido.');
+        return await client.reply(
+          message.chatId,
+          '❌ Valor inválido.',
+          message.id
+        );
       }
 
       const senderBalance = senderUser.economy?.money ?? 0;
       if (senderBalance < amount) {
-        return client.sendText(message.chatId, '❌ Saldo insuficiente.');
+        return await client.reply(
+          message.chatId,
+          '❌ Saldo insuficiente.',
+          message.id
+        );
       }
 
       let delayMs = 0;
@@ -91,9 +104,10 @@ export default {
         const maxMs = ms('7d');
 
         if (!delayMs || delayMs <= 0 || delayMs > maxMs) {
-          return client.sendText(
+          return await client.reply(
             message.chatId,
             '❌ Tempo inválido. Use algo como "10m", "2h", "1d" (máximo 7 dias).',
+            message.id
           );
         }
       }
@@ -103,7 +117,7 @@ export default {
         currency: 'BRL',
       });
 
-      const recipientName = targetUser.name || 'Usuário';
+      const recipientName = targetUser.name || 'Desconhecido';
 
       if (delayMs > 0) {
         const scheduledAt = new Date(Date.now() + delayMs);
@@ -121,9 +135,10 @@ export default {
         senderUser.economy.money -= amount;
         await senderUser.save();
 
-        return client.sendText(
+        return await client.reply(
           message.chatId,
           `📅 Pix de *${formattedAmount}* agendado para *${formattedDate}* para *${recipientName}*.`,
+          message.id
         );
       } else {
         senderUser.economy.money -= amount;
@@ -132,16 +147,18 @@ export default {
         await senderUser.save();
         await targetUser.save();
 
-        return client.sendText(
+        return await client.reply(
           message.chatId,
           `✅ Pix de *${formattedAmount}* enviado para *${recipientName}*!`,
+          message.id
         );
       }
     } catch (err) {
       console.error('[PIX] Erro:', err);
-      return client.sendText(
+      return await client.reply(
         message.chatId,
         '❌ Ocorreu um erro ao processar o Pix.',
+        message.id
       );
     }
   },

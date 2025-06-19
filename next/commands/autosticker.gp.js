@@ -24,30 +24,40 @@ export default {
             $set: {
               name: chat.name,
               inviteLink,
-              autoSticker: false,
+              'settings.autoSticker': true, // ativado já aqui
             },
           },
-          { upsert: true, new: true },
+          { upsert: true, new: true }
         );
 
-        await client.sendText(groupId, '✅ Auto-sticker ativado neste grupo!');
+        await client.reply(
+          groupId,
+          '✅ Auto-sticker ativado neste grupo!',
+          message.id
+        );
         console.log(`[AUTO] Auto-sticker ativado para novo grupo: ${groupId}`);
         return;
       }
 
-      group.autoSticker = !group.autoSticker;
+      // Alterna o valor dentro de settings.autoSticker
+      group.settings.autoSticker = !group.settings.autoSticker;
       await group.save();
 
-      const status = group.autoSticker ? 'ativado' : 'desativado';
-      await client.sendText(groupId, `✅ Auto-sticker ${status} neste grupo.`);
+      const status = group.settings.autoSticker ? 'ativado' : 'desativado';
+      await client.reply(
+        groupId,
+        `✅ Auto-sticker ${status} neste grupo.`,
+        message.id
+      );
       console.log(
-        `[AUTO] Auto-sticker ${status} para grupo ${group.name} (${group.id})`,
+        `[AUTO] Auto-sticker ${status} para grupo ${group.name} (${group.id})`
       );
     } catch (err) {
       console.error('❌ Erro ao alternar auto-sticker:', err);
-      await client.sendText(
+      await client.reply(
         message.chatId,
         '❌ Erro ao alternar auto-sticker. Tente novamente.',
+        message.id
       );
     }
   },

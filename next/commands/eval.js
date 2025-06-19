@@ -4,7 +4,7 @@ export default {
   name: 'eval',
   args: true,
   description:
-    'Executa código JavaScript dinamicamente (apenas para o dono do bot)',
+    'Executa código JavaScript dinamicamente (apenas para o dono e administradores do bot)',
   group_only: false,
   bot_owner_only: true,
   group_admin_only: false,
@@ -14,21 +14,18 @@ export default {
     const code = args.join(' ');
 
     try {
-      // Função auxiliar para enviar mensagens
       const print = async (msg) => {
-        await client.sendText(chatId, String(msg));
+        await client.reply(chatId, String(msg), message.id);
       };
 
-      // Avaliação assíncrona com variáveis disponíveis no escopo
       const evaled = await (async () => {
-        // Variáveis injetadas no escopo do eval
         const ctx = { client, message, args, print };
+        // Avalia o código em contexto assíncrono e isolado
         return await eval(
-          `(async ({ client, message, args, print }) => { ${code} })`,
+          `(async ({ client, message, args, print }) => { ${code} })`
         )(ctx);
       })();
 
-      // Processamento da saída
       let output =
         typeof evaled !== 'string'
           ? util.inspect(evaled, { depth: 1 })
@@ -36,14 +33,19 @@ export default {
 
       if (output.length > 3000) output = output.slice(0, 2997) + '...';
 
-      await client.sendText(message.sender.id, `\n\`\`\`\n${output}\n\`\`\``);
+      await client.reply(
+        message.sender.id,
+        `\n\`\`\`\n${output}\n\`\`\``,
+        message.id
+      );
     } catch (err) {
       let error = err.stack || err.toString();
       if (error.length > 3000) error = error.slice(0, 2997) + '...';
 
-      await client.sendText(
+      await client.reply(
         message.sender.id,
         `❌ Erro:\n\`\`\`\n${error}\n\`\`\``,
+        message.id
       );
     }
   },

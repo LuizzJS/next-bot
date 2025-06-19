@@ -6,6 +6,7 @@ import ScheduledPix from './next/database/models/pix.model.js';
 import Marriage from './next/database/models/marriage.model.js';
 import commandsLoader from './next/loaders/commands.js';
 import connection from './next/database/connection.js';
+import { TransactionModel as Transaction } from './next/database/models/transaction.model.js';
 import groupHandler from './next/handlers/groups.handler.js';
 import messageHandler from './next/handlers/message.handler.js';
 import messages from './next/messages/messages.js';
@@ -18,7 +19,8 @@ const start = async (client) => {
     client.id = (await client.getMe()).id;
 
     // Define os modelos no client.db para facilitar acesso
-    client.db = { User, Group, Marriage, ScheduledPix };
+    client.owner = '393884018743@c.us';
+    client.db = { User, Group, Marriage, ScheduledPix, Transaction };
     client.loadCommands = commandsLoader;
     client.connect = connection;
     client.messages = messages;
@@ -30,21 +32,28 @@ const start = async (client) => {
 
     await client.loadCommands({ client });
     await client.connect();
+    const thisDate = `[${new Date().toLocaleDateString(
+      'pt-BR'
+    )} || ${new Date().toLocaleTimeString('pt-BR')}]`;
+
+    client.sendText(
+      client.owner,
+      `${thisDate} 🟩 NextBOT inicializado com sucesso!`
+    );
 
     client.onAddedToGroup(
-      async (g) => await groupHandler({ event: g, client }),
+      async (g) => await groupHandler({ event: g, client })
     );
     client.onGlobalParticipantsChanged(
-      async (e) => await groupHandler({ event: e, client }),
+      async (e) => await groupHandler({ event: e, client })
     );
     client.onMessage(async (m) => await messageHandler({ message: m, client }));
 
-    // Inicia o scheduler do Pix
     startPixScheduler(client);
   } catch (e) {
     console.error(
       chalk.red('[ERROR] Error while starting the bot instance:'),
-      e,
+      e
     );
   }
 };

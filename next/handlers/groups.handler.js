@@ -13,7 +13,6 @@ const groupHandler = async ({ event, client }) => {
       groupName =
         groupChat.name || groupChat.formattedTitle || 'Grupo sem nome';
     } else {
-      // Veio de onAddedToGroup
       groupId = event.id;
       groupName = event.name || event.formattedTitle || 'Grupo sem nome';
     }
@@ -26,7 +25,7 @@ const groupHandler = async ({ event, client }) => {
       inviteLink = await client.getGroupInviteLink(groupId);
     } catch (inviteErr) {
       console.warn(
-        `⚠️ Não foi possível obter link de convite do grupo ${groupName} (${groupId})`,
+        `⚠️ Não foi possível obter link de convite do grupo ${groupName} (${groupId})`
       );
     }
 

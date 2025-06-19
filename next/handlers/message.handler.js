@@ -1,171 +1,268 @@
-import media_handler from './media.handler.js';
+import mediaHandler from './media.handler.js';
 
-const message_handler = async ({ message, client }) => {
-  const from = message.from;
-  const is_group = from.includes('@g.us');
-  const is_broadcast =
-    from.endsWith('@broadcast') || from.endsWith('@newsletter');
+const CACHE_CONFIG = {
+  PREFIX_TTL: 5 * 60 * 1000,
+  GROUP_DATA_TTL: 10 * 60 * 1000,
+};
 
+const cache = {
+  prefixes: new Map(),
+  groupData: new Map(),
+};
+
+const messageHandler = async ({ message, client }) => {
+  const { body, chatId } = message;
+  const isGroup = chatId?.endsWith('@g.us');
+  const isBroadcast =
+    chatId?.endsWith('@broadcast') || chatId?.endsWith('@newsletter');
+
+  if (isBroadcast) return; // ignora broadcasts/newsletters
+  if (!body?.trim()) return; // ignora mensagens vazias
+
+  // --- Resolver sender e prefixo ---
+  let senderId = message.sender?.id || message.author || message.from;
+  if (!senderId) return;
+
+  let senderName = 'Usuário';
   try {
-    if (is_broadcast || !message.body?.trim()) return;
+    const contact = await client.getContact(senderId);
+    senderName = contact?.pushname || contact?.name || senderName;
+  } catch {}
 
-    // Define prefixo
-    let prefix = client.prefix || '/';
-    if (is_group) {
-      const groupData = await client.db.Group.findOne({ id: message.chatId });
-      if (groupData?.prefix) {
-        prefix = groupData.prefix;
+  const phoneNumber = senderId.replace('@c.us', '');
+
+  // --- Log mensagem recebida ---
+  console.log(
+    `[M] De: ${phoneNumber} | Chat: ${chatId} | Conteúdo: "${
+      body.length > 50 ? body.slice(0, 50) + '...' : body
+    }"`
+  );
+
+  // --- Obter prefixo com cache ---
+  let prefix = '/';
+  if (isGroup) {
+    const cacheKey = chatId.replace(/\./g, '_');
+    const cachedPrefix = cache.prefixes.get(cacheKey);
+    if (cachedPrefix && cachedPrefix.expires > Date.now()) {
+      prefix = cachedPrefix.value;
+    } else {
+      const group = await client.db.Group.findOne({ id: chatId })
+        .select('settings.prefix')
+        .lean();
+      prefix = group?.settings?.prefix || client.prefix || '/';
+      cache.prefixes.set(cacheKey, {
+        value: prefix,
+        expires: Date.now() + CACHE_CONFIG.PREFIX_TTL,
+      });
+    }
+  } else {
+    prefix = client.prefix || '/';
+  }
+
+  // --- Atualizar dados grupo ---
+  let groupData = null;
+  if (isGroup) {
+    const cacheKey = chatId.replace(/\./g, '_');
+    const cachedGroup = cache.groupData.get(cacheKey);
+    if (cachedGroup && cachedGroup.expires > Date.now()) {
+      groupData = cachedGroup.data;
+    } else {
+      try {
+        const groupInfo = await client.getChatById(chatId);
+        const inviteLink = await client
+          .getGroupInviteLink(chatId)
+          .catch(() => null);
+        const participants = await client
+          .getGroupMembers(chatId)
+          .catch(() => []);
+
+        const updateData = {
+          name: groupInfo.name,
+          inviteLink: inviteLink || '',
+          'members.count': participants.length,
+          'stats.lastActivity': new Date(),
+        };
+
+        const group = await client.db.Group.findOneAndUpdate(
+          { id: chatId },
+          {
+            $set: updateData,
+            $setOnInsert: {
+              settings: {
+                autoSticker: false,
+                prefix: '/',
+                welcomeMessage: 'Bem-vindo(a), {user}!',
+              },
+              createdAt: new Date(),
+              userActivities: new Map(),
+            },
+          },
+          { upsert: true, new: true, runValidators: true }
+        );
+
+        if (group.recordUserMessage) {
+          await group.recordUserMessage(phoneNumber);
+        }
+
+        cache.groupData.set(cacheKey, {
+          data: group,
+          expires: Date.now() + CACHE_CONFIG.GROUP_DATA_TTL,
+        });
+
+        groupData = group;
+      } catch (error) {
+        console.error('Erro ao atualizar dados do grupo:', error);
       }
     }
+  }
 
-    const sender_id = message.sender?.id || message.author || message.from;
-    const sender = await client.getContact(sender_id);
-    const sender_name = sender.pushname || 'Desconhecido';
-
-    if (is_group) {
-      const group = await client.getChatById(message.chatId);
-      const inviteLink = await client
-        .getGroupInviteLink(group.id)
-        .catch(() => null);
-
-      await client.db.Group.findOneAndUpdate(
-        { id: group.id },
-        {
-          $set: {
-            name: group.name,
-            inviteLink,
-          },
-          $setOnInsert: {
-            autoSticker: false,
-          },
-        },
-        { upsert: true, new: true },
-      );
-    }
-
-    // Busca ou cria usuário no banco
-    const user_phone = String(sender?.id).replace('@c.us', '');
-    let user = await client.db.User.findOne({ phone: user_phone });
-
+  // --- Atualizar/Registrar usuário ---
+  try {
+    let user = await client.db.User.findOne({ phone: phoneNumber });
     if (!user) {
-      user = await client.db.User.create({
-        name: sender_name,
-        phone: user_phone,
+      user = new client.db.User({
+        phone: phoneNumber,
+        name: senderName,
+        activity: {
+          lastSeen: new Date(),
+          messagesSent: 1,
+          commandsUsed: 0,
+        },
+        groups: isGroup ? [chatId] : [],
       });
-
-      console.warn(`⚠️ Novo usuário adicionado na database: ${user_phone}`);
-      return;
-    }
-
-    // Incrementa mensagens no grupo atual (usando Map)
-    if (is_group) {
-      const groupKey = message.chatId.replace('.', '_');
-      const path = `data.${groupKey}.messages`;
-
-      await client.db.User.updateOne(
-        { phone: user_phone },
-        { $inc: { [path]: 1 } },
-        { upsert: true },
+      await user.save();
+      console.log(`[U] Criado novo usuário ${phoneNumber} (${senderName})`);
+    } else {
+      const updateData = {
+        $set: { name: senderName, 'activity.lastSeen': new Date() },
+        $inc: { 'activity.messagesSent': 1 },
+      };
+      if (isGroup) {
+        updateData.$addToSet = { groups: chatId };
+      }
+      user = await client.db.User.findOneAndUpdate(
+        { phone: phoneNumber },
+        updateData,
+        {
+          new: true,
+          runValidators: true,
+        }
       );
+      console.log(`[U] Atualizado usuário ${phoneNumber} (${senderName})`);
     }
+  } catch (error) {
+    console.error('Erro ao salvar dados do usuário:', error);
+  }
 
-    // Trata mídias (imagem ou vídeo)
-    if (
-      message.mimetype?.startsWith('image/') ||
-      message.mimetype?.startsWith('video/') ||
-      message.body.startsWith('sticker')
-    ) {
-      return await media_handler({ message, client });
-    }
+  // --- Se for mídia, chama mediaHandler e retorna ---
+  if (
+    ['image', 'video', 'audio', 'sticker', 'document'].includes(message.type) ||
+    (message.type === 'conversation' && message.isMedia === true)
+  ) {
+    return mediaHandler({ message, client, groupData });
+  }
 
-    const user_role = user.config?.role || 'user';
-    const user_lang = user.config?.language?.substring(0, 2) || 'pt';
-    const is_bot_owner = user_role === 'owner' || user_role === 'admin';
-
-    const is_admin = is_group
-      ? (await client.getGroupAdmins(message.chatId)).includes(sender.id)
-      : false;
-
-    console.log(
-      `[MSG] Grupo: ${is_group} | Nome: ${sender_name} | ID: ${sender.id} | Conteúdo: ${message.body}`,
-    );
-
-    const body = message.body.trim();
-    if (!body.startsWith(prefix)) return;
-
-    const [command_name, ...args] = body
+  // --- Se mensagem começa com prefixo, tenta executar comando ---
+  if (body.trim().startsWith(prefix)) {
+    const [commandName, ...args] = body
       .slice(prefix.length)
       .trim()
       .split(/\s+/);
-    const command = client.commands.get(command_name.toLowerCase());
+    const command = client.commands.get(commandName.toLowerCase());
     if (!command) return;
 
-    const placeholders = {
-      '{user}': `@${user_phone}`,
-      '{example}': command.command_example || '',
-    };
+    // --- Verifica permissões básicas ---
+    const user = await client.db.User.findOne({ phone: phoneNumber });
+    const role = user?.config?.role || 'user';
 
-    const formatMsg = (template) => {
-      let msg = template;
-      for (const [key, value] of Object.entries(placeholders)) {
-        msg = msg.replace(new RegExp(key, 'g'), value);
+    if (command.group_only && !isGroup) {
+      return client.reply(
+        chatId,
+        '❌ Este comando só pode ser usado em grupos.',
+        message.id
+      );
+    }
+    if (command.group_admin_only) {
+      const chat = await client.getChatById(chatId);
+      const participant = chat?.participants.find(
+        (p) => p.id._serialized === senderId
+      );
+      if (!participant?.isAdmin && !participant?.isSuperAdmin) {
+        return client.reply(
+          chatId,
+          '❌ Este comando requer que você seja administrador do grupo.',
+          message.id
+        );
       }
-      return msg;
-    };
-
-    if (command.args_length && args.length < command.args_length) {
-      const msg = client.messages?.restrictions?.missing_args?.[user_lang]
-        ? formatMsg(client.messages.restrictions.missing_args[user_lang])
-        : 'Argumentos insuficientes.';
-      return client.sendTextWithMentions(message.chatId, msg);
+    }
+    if (command.bot_admin_only && !['admin', 'owner'].includes(role)) {
+      return client.reply(
+        chatId,
+        '❌ Este comando requer que você seja administrador do bot.',
+        message.id
+      );
+    }
+    if (command.bot_owner_only && role !== 'owner') {
+      return client.reply(
+        chatId,
+        '❌ Este comando é restrito ao dono do bot.',
+        message.id
+      );
     }
 
-    if (command.group_only && !is_group) {
-      const msg = client.messages?.restrictions?.group_only?.[user_lang]
-        ? formatMsg(client.messages.restrictions.group_only[user_lang])
-        : 'Este comando só pode ser usado em grupos.';
-      return client.sendTextWithMentions(message.chatId, msg);
+    if (command.args && command.args > args.length) {
+      return client.reply(
+        chatId,
+        `❌ Uso incorreto do comando.\nUse:\n${prefix}${command.name} ${
+          command.args ? '<args>' : ''
+        }`,
+        message.id
+      );
     }
 
-    if (command.bot_owner_only && !is_bot_owner) {
-      const msg = client.messages?.restrictions?.owner_only?.[user_lang]
-        ? formatMsg(client.messages.restrictions.owner_only[user_lang])
-        : 'Apenas o dono do bot pode usar este comando.';
-      return client.sendTextWithMentions(message.chatId, msg);
-    }
-
-    if (command.admin_only && !is_admin) {
-      const msg = client.messages?.restrictions?.admin_only?.[user_lang]
-        ? formatMsg(client.messages.restrictions.admin_only[user_lang])
-        : 'Você precisa ser administrador para usar este comando.';
-      return client.sendTextWithMentions(message.chatId, msg);
-    }
-
-    // Executa o comando
+    // --- Log comando executado ---
+    const chatName = (await client.getChatById(chatId)).name;
     console.log(
-      `⚙️ Executando "${command.name}" | Por: ${sender_name} (${user_phone})`,
+      `[C] Executando comando "${command.name}" por ${phoneNumber} em ${chatName}`
     );
-    await client.react(message.id, '⌛');
-    const start = Date.now();
 
-    await command.execute({ message, client, args, prefix });
+    try {
+      // --- Reação: comando iniciado ---
+      await client.react(chatId, '⌛', message.id);
 
-    const runtime = (Date.now() - start).toFixed(2);
-    console.log(`⚙️ "${command.name}" finalizado. Tempo: ${runtime}ms`);
-    await client.react(message.id, '✅');
-  } catch (error) {
-    console.error('❌ Erro no message_handler:', error);
-    await client.react(message.id, '❎');
+      const startTime = Date.now();
 
-    const user_lang = message?.user?.config?.language?.substring(0, 2) || 'pt';
-    const msg = client.messages?.errors?.unknownError?.[user_lang]
-      ? client.messages.errors.unknownError[user_lang].replace(
-          '{user}',
-          `@${message.sender?.id || message.author || message.from}`,
-        )
-      : '❌ Ocorreu um erro ao processar sua mensagem. Tente novamente mais tarde.';
-    await client.sendText(message.chatId, msg);
+      // --- Incrementa contador comandos usados e executa ---
+      await client.db.User.findOneAndUpdate(
+        { phone: phoneNumber },
+        { $inc: { 'activity.commandsUsed': 1 } }
+      );
+
+      await command.execute({ client, message, args, prefix });
+
+      const endTime = Date.now();
+      const elapsed = ((endTime - startTime) / 1000).toFixed(2);
+
+      // --- Reação: comando finalizado ---
+      await client.react(message.id, '✅');
+
+      // --- Log tempo execução ---
+      console.log(
+        `[C] Comando "${command.name}" finalizado por ${phoneNumber} em ${elapsed}s`
+      );
+    } catch (error) {
+      console.error(`Erro ao executar comando ${command.name}:`, error);
+
+      // --- Reação: erro na execução ---
+      await client.react(message.id, '❌');
+
+      await client.reply(
+        chatId,
+        `❌ Ocorreu um erro ao executar o comando ${command.name}.`,
+        message.id
+      );
+    }
   }
 };
 
-export default message_handler;
+export default messageHandler;

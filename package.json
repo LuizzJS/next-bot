@@ -13,6 +13,7 @@
   "dependencies": {
     "@google/genai": "^1.5.1",
     "@open-wa/wa-automate": "^4.76.0",
+    "@vitalets/google-translate-api": "^9.2.1",
     "axios": "^1.10.0",
     "chalk": "^5.4.1",
     "dayjs": "^1.11.13",
@@ -20,6 +21,7 @@
     "humanize-duration": "^3.33.0",
     "mongoose": "^8.15.2",
     "nekos-best.js": "^6.4.0",
+    "node-key-sender": "^1.0.11",
     "util": "^0.12.5"
   }
 }

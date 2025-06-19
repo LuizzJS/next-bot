@@ -1,38 +1,61 @@
 export default {
   name: 'prefix',
+  aliases: ['prefixo'],
   args: true,
-  description: 'Muda o prefixo do grupo atual',
+  description: 'Altera o prefixo do grupo atual (padrão: "/")',
   group_only: true,
   bot_owner_only: false,
   group_admin_only: true,
-  execute: async ({ client, message, args }) => {
-    const newPrefix = args[0];
 
-    if (!newPrefix || newPrefix.length > 3) {
-      return client.sendText(
-        message.chatId,
-        '❌ Prefixo inválido. Use até 3 caracteres. Ex: `/prefix !`',
+  execute: async ({ client, message, args }) => {
+    const groupId = message.chatId;
+    const newPrefix = args[0]?.trim();
+
+    if (!newPrefix) {
+      return await client.reply(
+        groupId,
+        `❌ Por favor, informe um novo prefixo. Exemplo: /prefixo !`,
+        message.id
+      );
+    }
+
+    if (newPrefix.length > 3) {
+      return await client.reply(
+        groupId,
+        '❌ O prefixo deve ter no máximo 3 caracteres.',
+        message.id
+      );
+    }
+
+    if (/\s/.test(newPrefix)) {
+      return await client.reply(
+        groupId,
+        '❌ O prefixo não pode conter espaços ou quebras de linha.',
+        message.id
       );
     }
 
     try {
-      const groupId = message.chatId;
+      const group = await client.db.Group.findOne({ id: groupId });
+      const oldPrefix = group?.settings?.prefix || '/';
 
       await client.db.Group.findOneAndUpdate(
         { id: groupId },
-        { $set: { prefix: newPrefix } },
-        { upsert: true },
+        { $set: { 'settings.prefix': newPrefix } },
+        { upsert: true }
       );
 
-      return client.sendText(
+      await client.reply(
         groupId,
-        `✅ Prefixo atualizado com sucesso para: *${newPrefix}*`,
+        `✅ Prefixo alterado de "${oldPrefix}" para "${newPrefix}".\nAgora use comandos como: *${newPrefix}help*`,
+        message.id
       );
     } catch (error) {
-      console.error('Erro ao atualizar prefixo:', error);
-      return client.sendText(
-        message.chatId,
-        '❌ Ocorreu um erro ao tentar alterar o prefixo.',
+      console.error('Erro ao alterar prefixo:', error);
+      await client.reply(
+        groupId,
+        '❌ Falha ao alterar o prefixo. Tente novamente mais tarde.',
+        message.id
       );
     }
   },

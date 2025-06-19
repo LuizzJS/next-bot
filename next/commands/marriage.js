@@ -19,7 +19,7 @@ export default {
   name: 'marriage',
   aliases: ['casamento', 'matrimonio'],
   args: false,
-  description: 'Verifica o status do casamento',
+  description: 'Mostra as informações do seu casamento atual.',
   group_only: true,
   bot_owner_only: false,
   group_admin_only: false,
@@ -28,7 +28,11 @@ export default {
     try {
       const senderId = message.sender?.id || message.sender;
       if (!senderId) {
-        return client.sendText(message.chatId, '❌ Usuário não identificado.');
+        return client.reply(
+          message.chatId,
+          '❌ Usuário não identificado.',
+          message.id
+        );
       }
 
       const { User, Marriage } = client.db;
@@ -48,6 +52,7 @@ export default {
 
       const senderUser = await getOrCreateUser(senderId);
 
+      // Se foi passado argumento, tenta buscar outro usuário
       let targetUser = senderUser;
       if (args.length > 0) {
         const foundUser = await client.findUser({
@@ -63,6 +68,7 @@ export default {
 
       const isSelf = senderUser.phone === targetUser.phone;
 
+      // Busca casamento onde targetUser seja partner1 ou partner2, status aceito
       const marriage = await Marriage.findOne({
         $or: [{ partner1: targetUser._id }, { partner2: targetUser._id }],
         status: 'accepted',
@@ -73,24 +79,18 @@ export default {
         const msg = isSelf
           ? '💔 Você ainda não encontrou o amor...'
           : `💔 ${displayName} está solteira(o) no momento.`;
-        return client.sendText(message.chatId, msg);
+        return client.reply(message.chatId, msg, message.id);
       }
 
       const partner = marriage.partner1._id.equals(targetUser._id)
         ? marriage.partner2
         : marriage.partner1;
 
-      async function ensureUserName(user) {
-        if (!user.name) {
-          const dbUser = await User.findById(user._id);
-          return dbUser?.name || 'Desconhecido';
-        }
-        return user.name;
-      }
+      // Garante nome conhecido para usuário e parceiro
+      const userName = targetUser.name || 'Desconhecido';
+      const partnerName = partner.name || 'Desconhecido';
 
-      const userName = await ensureUserName(targetUser);
-      const partnerName = await ensureUserName(partner);
-
+      // Data casamento ou atualização do registro
       const marriedAtDate = marriage.marriedAt || marriage.updatedAt;
       const since = dayjs(marriedAtDate).format('D [de] MMMM [de] YYYY');
       const msDuration = dayjs().diff(marriedAtDate);
@@ -99,12 +99,17 @@ export default {
       const selfText = `💍 ${userName}, você e *${partnerName}* estão casados desde *${since}*.\n⏳ O seu casamento já dura *${duration}*!`;
       const otherText = `💍 *${userName}* e *${partnerName}* estão casados desde *${since}*.\n⏳ O casamento deles já dura *${duration}*!`;
 
-      return client.sendText(message.chatId, isSelf ? selfText : otherText);
+      return client.reply(
+        message.chatId,
+        isSelf ? selfText : otherText,
+        message.id
+      );
     } catch (error) {
       console.error('[MARRIAGE] Erro inesperado:', error);
-      return client.sendText(
+      return client.reply(
         message.chatId,
         '❌ Ocorreu um erro ao verificar o casamento.',
+        message.id
       );
     }
   },
