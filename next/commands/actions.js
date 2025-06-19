@@ -128,7 +128,7 @@ export default {
   description:
     'Envia um GIF interativo com outro membro. Ex: tapa, beijo, abraço e mais.',
   group_only: true,
-
+  bot_owner_only: true,
   execute: async ({ client, message, args, prefix }) => {
     try {
       const invoked = message.body

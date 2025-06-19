@@ -11,13 +11,20 @@ export default {
     const isSpecific = args.length > 0;
 
     if (!isSpecific) {
-      // Lista todos os comandos agrupados
-      let msg = '📚 *Lista de Comandos Disponíveis:*\n\n';
+      // Lista todos os comandos agrupados sem duplicar aliases
+      let msg = '📚 *Lista de Comandos Disponíveis:*\n';
 
-      const commands = [...client.commands.values()];
+      const uniqueCommands = new Map();
+
+      for (const cmd of client.commands.values()) {
+        if (!uniqueCommands.has(cmd.name)) {
+          uniqueCommands.set(cmd.name, cmd);
+        }
+      }
+
       const categories = {};
 
-      for (const cmd of commands) {
+      for (const cmd of uniqueCommands.values()) {
         const group = cmd.group_only ? '🌐 Grupos' : '👤 Privado';
         if (!categories[group]) categories[group] = [];
         categories[group].push(
@@ -26,7 +33,8 @@ export default {
       }
 
       for (const [group, cmds] of Object.entries(categories)) {
-        msg += `*${group}*\n${cmds.join('\n')}\n\n`;
+        msg += `*${group}*
+${cmds.join('\n')}\n\n`;
       }
 
       msg += `ℹ️ Use *${prefix}help <comando>* para ver mais detalhes.\nEx: *${prefix}help casar*`;
@@ -59,7 +67,8 @@ export default {
       group_admin_only,
     } = command;
 
-    let msg = `📖 *Ajuda do comando: ${prefix}${name}*\n\n`;
+    let msg = `📖 *Ajuda do comando: ${prefix}${name}*
+\n`;
     msg += `📌 *Descrição:* ${description || 'Sem descrição'}\n`;
     msg += `🔁 *Aliases:* ${
       aliases?.length

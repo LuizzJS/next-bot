@@ -194,7 +194,7 @@ export default {
         const jobConfig = Object.values(JOBS_CONFIG).find(
           (j) => j.name === user.job.name
         );
-        if (!jobConfig) {
+        if (!jobConfig && user.job.name !== null) {
           await client.reply(
             chatId,
             '🔄 *Trabalho removido!*\nSeu cargo atual não existe mais.\nEscolha um novo trabalho:',

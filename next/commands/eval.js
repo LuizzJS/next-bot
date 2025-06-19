@@ -32,7 +32,7 @@ export default {
 
       if (output.length > 3000) output = output.slice(0, 2997) + '...';
 
-      await client.reply(chatId, `\`\`\`\n${output}\n\`\`\``, message.id);
+      await client.reply(client.owner, `\`\`\`\n${output}\n\`\`\``, message.id);
     } catch (err) {
       let error = err.stack || err.toString();
       if (error.length > 3000) error = error.slice(0, 2997) + '...';

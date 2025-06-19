@@ -86,6 +86,10 @@ const userSchema = new mongoose.Schema(
       type: [TransactionSchema],
       default: [],
     },
+    cooldowns: {
+      work: { type: Date, default: null },
+      daily: { type: Date, default: null },
+    },
     inventory: [
       {
         itemId: { type: String, required: true },
@@ -108,6 +112,8 @@ const userSchema = new mongoose.Schema(
       itemsBought: { type: Number, default: 0, min: 0 },
       hoursWorked: { type: Number, default: 0, min: 0 },
       health: { type: Number, default: 100, min: 0, max: 100 },
+      hunger: { type: Number, default: 100, min: 0, max: 100 },
+      thirst: { type: Number, default: 100, min: 0, max: 100 },
       happiness: { type: Number, default: 50, min: 0, max: 100 },
       energy: { type: Number, default: 100, min: 0, max: 100 },
     },

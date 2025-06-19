@@ -8,7 +8,7 @@ export default {
   group_admin_only: false,
 
   execute: async ({ client, message, args, prefix }) => {
-    const { chatId, sender } = message;
+    const { chatId, sender, isGroupMsg } = message;
     const senderId = sender?.id || message.author || message.from || '';
 
     if (!senderId) {
@@ -16,8 +16,9 @@ export default {
     }
 
     try {
-      const { User } = client.db;
+      const { User, Group } = client.db;
 
+      // Obtém perfil do usuário (mencionado ou próprio)
       const targetUser = await getUserProfile(
         client,
         User,
@@ -25,7 +26,24 @@ export default {
         args,
         senderId
       );
-      const profileMessage = buildProfileMessage(targetUser, prefix, senderId);
+
+      // Busca mensagens enviadas pelo usuário no grupo atual (se for grupo)
+      let groupMessageCount = 0;
+      if (isGroupMsg) {
+        const groupData = await Group.findOne({ chatId });
+        const userActivity = groupData?.userActivities?.find(
+          (u) => u.phone === targetUser.phone
+        );
+        groupMessageCount = userActivity?.messages || 0;
+      }
+
+      // Monta a mensagem de perfil, já com o contador de mensagens do grupo
+      const profileMessage = await buildProfileMessage(
+        targetUser,
+        prefix,
+        senderId,
+        groupMessageCount
+      );
 
       return client.reply(chatId, profileMessage, message.id);
     } catch (error) {
@@ -39,12 +57,16 @@ export default {
   },
 };
 
-// Helper functions
+// --- Funções auxiliares ---
+
 async function getUserProfile(client, User, message, args, senderId) {
   const { mentionedJidList = [] } = message;
 
-  // Busca usuário mencionado ou padrão (sender)
-  if (args.length > 0 || mentionedJidList.length > 0) {
+  // Se houver argumentos ou menção, busca usuário referido
+  if (
+    (args && args.length > 0) ||
+    (mentionedJidList && mentionedJidList.length > 0)
+  ) {
     const foundUser = await client.findUser({
       chat: message.chat,
       input: args.join(' '),
@@ -57,6 +79,7 @@ async function getUserProfile(client, User, message, args, senderId) {
     }
   }
 
+  // Senão, retorna o usuário do sender
   return await getOrCreateUser(User, senderId, client);
 }
 
@@ -103,6 +126,8 @@ async function createNewUser(User, phone, contact) {
       health: 100,
       happiness: 50,
       energy: 100,
+      hunger: 100, // adiciona hunger e thirst para evitar undefined
+      thirst: 100,
     },
     activity: {
       lastSeen: new Date(),
@@ -135,6 +160,8 @@ async function createBasicUser(User, phone) {
       health: 100,
       happiness: 50,
       energy: 100,
+      hunger: 100,
+      thirst: 100,
     },
     activity: {
       lastSeen: new Date(),
@@ -145,11 +172,16 @@ async function createBasicUser(User, phone) {
   });
 }
 
-function buildProfileMessage(user, prefix, senderId) {
+async function buildProfileMessage(
+  user,
+  prefix,
+  senderId,
+  groupMessageCount = 0
+) {
   const isSelf = user.phone === senderId.replace('@c.us', '');
   const now = new Date();
 
-  // Formatações
+  // Formatação utilitária
   const format = {
     currency: (value) =>
       value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
@@ -166,13 +198,13 @@ function buildProfileMessage(user, prefix, senderId) {
     },
   };
 
-  // Dados calculados
+  // Cálculo de dias registrado e progresso de nível
   const daysRegistered =
     Math.floor((now - new Date(user.registeredAt)) / (1000 * 60 * 60 * 24)) ||
     1;
   const levelProgress = calculateLevelProgress(user.stats);
 
-  // Construção da mensagem
+  // Montagem da mensagem
   let message = `👤 *${user.name || 'Usuário'}* ${
     isSelf ? '' : '(Perfil Visualizado)'
   }\n`;
@@ -180,37 +212,42 @@ function buildProfileMessage(user, prefix, senderId) {
     user.registeredAt
   )} (${daysRegistered} dia${daysRegistered > 1 ? 's' : ''})\n\n`;
 
-  // Seção Econômica
+  // Economia
   message += `💵 *Economia*\n`;
   message += `▸ Carteira: ${format.currency(user.economy?.cash || 0)}\n`;
   message += `▸ Banco: ${format.currency(user.economy?.bank || 0)}\n`;
   message += `▸ Total Ganho: ${format.currency(
     user.economy?.totalEarned || 0
-  )}\n`;
+  )}\n\n`;
 
-  // Seção de Status
+  // Status
   message += `❤️ *Status*\n`;
   message += `▸ Saúde: ${format.progressBar(user.stats.health)}\n`;
   message += `▸ Energia: ${format.progressBar(user.stats.energy)}\n`;
+  message += `▸ Fome: ${format.progressBar(user.stats.hunger)}\n`;
+  message += `▸ Sede: ${format.progressBar(user.stats.thirst)}\n`;
   message += `▸ Felicidade: ${format.progressBar(user.stats.happiness)}\n\n`;
 
-  // Seção de Progresso
+  // Progresso
   message += `📊 *Progresso*\n`;
   message += `▸ Nível: ${levelProgress.level}\n`;
   message += `▸ XP: ${levelProgress.xp}/${levelProgress.xpNeeded}\n`;
-  message += `▸ Progresso: ${format.progressBar(levelProgress.progress)}\n`;
+  message += `▸ Progresso: ${format.progressBar(levelProgress.progress)}\n\n`;
 
-  // Seção de Estatísticas
+  // Estatísticas
   message += `🏆 *Estatísticas*\n`;
   message += `▸ Trabalhos feitos: ${user.stats?.jobsDone || 0}\n`;
   message += `▸ Itens comprados: ${user.stats?.itemsBought || 0}\n`;
   message += `▸ Comandos usados: ${user.activity?.commandsUsed || 0}\n`;
-  message += `▸ Mensagens enviadas: ${user.activity?.messagesSent || 0}\n`;
+  message += `▸ Mensagens enviadas (global): ${
+    user.activity?.messagesSent || 0
+  }\n`;
+  message += `▸ Mensagens enviadas (grupo): ${groupMessageCount}\n`;
   message += `▸ Última atividade: ${format.timeAgo(
     user.activity?.lastSeen
   )}\n\n`;
 
-  // Dicas interativas
+  // Dicas
   if (isSelf) {
     message += `💡 *Dicas*\n`;
     message += `▸ Use \`${prefix}daily\` para resgatar seu prêmio diário\n`;
@@ -224,7 +261,8 @@ function buildProfileMessage(user, prefix, senderId) {
   return message;
 }
 
-// Helper para formatação de tempo relativo
+// --- Helpers ---
+
 function getTimeAgo(now) {
   return (date) => {
     if (!date) return 'Nunca';
@@ -239,8 +277,8 @@ function getTimeAgo(now) {
       { unit: 'minuto', seconds: 60 },
     ];
 
-    for (const { unit, seconds: secondsInUnit } of intervals) {
-      const interval = Math.floor(seconds / secondsInUnit);
+    for (const { unit, seconds: secInUnit } of intervals) {
+      const interval = Math.floor(seconds / secInUnit);
       if (interval >= 1)
         return `${interval} ${unit}${interval === 1 ? '' : 's'} atrás`;
     }
@@ -249,7 +287,6 @@ function getTimeAgo(now) {
   };
 }
 
-// Helper para cálculo do progresso de nível
 function calculateLevelProgress(stats = {}) {
   const level = stats.level || 1;
   const xp = stats.xp || 0;

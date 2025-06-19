@@ -6,10 +6,9 @@ const messageHandler = async ({ message, client }) => {
   const isBroadcast =
     chatId?.endsWith('@broadcast') || chatId?.endsWith('@newsletter');
 
-  if (isBroadcast) return; // ignora broadcasts/newsletters
-  if (!body?.trim()) return; // ignora mensagens vazias
+  if (isBroadcast) return;
+  if (!body?.trim()) return;
 
-  // --- Resolver sender e prefixo ---
   let senderId = message.sender?.id || message.author || message.from;
   if (!senderId) return;
 
@@ -21,14 +20,12 @@ const messageHandler = async ({ message, client }) => {
 
   const phoneNumber = senderId.replace('@c.us', '');
 
-  // --- Log mensagem recebida ---
   console.log(
     `[M] De: ${phoneNumber} | Chat: ${chatId} | Conteúdo: "${
       body.length > 50 ? body.slice(0, 50) + '...' : body
     }"`
   );
 
-  // --- Obter prefixo direto do DB (sem cache) ---
   let prefix = '/';
   if (isGroup) {
     try {
@@ -44,7 +41,6 @@ const messageHandler = async ({ message, client }) => {
     prefix = client.prefix || '/';
   }
 
-  // --- Atualizar dados do grupo no DB (sem cache) ---
   let groupData = null;
   if (isGroup) {
     try {
@@ -61,7 +57,6 @@ const messageHandler = async ({ message, client }) => {
         'stats.lastActivity': new Date(),
       };
 
-      // Atualiza ou cria grupo no DB
       groupData = await client.db.Group.findOneAndUpdate(
         { id: chatId },
         {
@@ -79,11 +74,9 @@ const messageHandler = async ({ message, client }) => {
         { upsert: true, new: true, runValidators: true }
       );
 
-      // Registrar atividade do usuário no grupo
       if (groupData.recordUserMessage) {
         await groupData.recordUserMessage(phoneNumber);
       } else {
-        // Se não existir método, atualiza direto aqui
         const key = `userActivities.${phoneNumber}`;
         await client.db.Group.updateOne(
           { id: chatId },
@@ -101,7 +94,7 @@ const messageHandler = async ({ message, client }) => {
     }
   }
 
-  // --- Atualizar/Registrar usuário ---
+  // --- Atualizar/Registrar usuário e reduzir fome/sede ---
   try {
     let user = await client.db.User.findOne({ phone: phoneNumber });
     if (!user) {
@@ -113,25 +106,37 @@ const messageHandler = async ({ message, client }) => {
           messagesSent: 1,
           commandsUsed: 0,
         },
+        stats: {
+          health: 100,
+          energy: 100,
+          hunger: 100,
+          thirst: 100,
+        },
         groups: isGroup ? [chatId] : [],
       });
       await user.save();
       console.log(`[U] Criado novo usuário ${phoneNumber} (${senderName})`);
     } else {
-      const updateData = {
+      const updates = {
         $set: { name: senderName, 'activity.lastSeen': new Date() },
         $inc: { 'activity.messagesSent': 1 },
       };
+
       if (isGroup) {
-        updateData.$addToSet = { groups: chatId };
+        updates.$addToSet = { groups: chatId };
       }
+
+      // Reduz fome e sede a cada 5 mensagens
+      const msgCount = (user.activity?.messagesSent || 0) + 1;
+      if (msgCount % 5 === 0) {
+        updates.$inc['stats.hunger'] = -2;
+        updates.$inc['stats.thirst'] = -3;
+      }
+
       user = await client.db.User.findOneAndUpdate(
         { phone: phoneNumber },
-        updateData,
-        {
-          new: true,
-          runValidators: true,
-        }
+        updates,
+        { new: true, runValidators: true }
       );
       console.log(`[U] Atualizado usuário ${phoneNumber} (${senderName})`);
     }
@@ -139,7 +144,6 @@ const messageHandler = async ({ message, client }) => {
     console.error('Erro ao salvar dados do usuário:', error);
   }
 
-  // --- Se for mídia, chama mediaHandler e retorna ---
   if (
     ['image', 'video', 'audio', 'sticker', 'document'].includes(message.type) ||
     (message.type === 'conversation' && message.isMedia === true)
@@ -147,7 +151,6 @@ const messageHandler = async ({ message, client }) => {
     return mediaHandler({ message, client, groupData });
   }
 
-  // --- Se mensagem começa com prefixo, tenta executar comando ---
   if (body.trim().startsWith(prefix)) {
     const [commandName, ...args] = body
       .slice(prefix.length)
@@ -156,7 +159,6 @@ const messageHandler = async ({ message, client }) => {
     const command = client.commands.get(commandName.toLowerCase());
     if (!command) return;
 
-    // --- Verifica permissões básicas ---
     const user = await client.db.User.findOne({ phone: phoneNumber });
     const role = user?.config?.role || 'user';
 
@@ -205,42 +207,40 @@ const messageHandler = async ({ message, client }) => {
       );
     }
 
-    // --- Log comando executado ---
     const chatName = (await client.getChatById(chatId)).name;
     console.log(
       `[C] Executando comando "${command.name}" por ${phoneNumber} em ${chatName}`
     );
 
     try {
-      // --- Reação: comando iniciado ---
       await client.react(message.id, '⌛');
-
       const startTime = Date.now();
 
-      // --- Incrementa contador comandos usados e executa ---
       await client.db.User.findOneAndUpdate(
         { phone: phoneNumber },
         { $inc: { 'activity.commandsUsed': 1 } }
       );
 
+      if (!user?.authorized && command.name !== 'register') {
+        return client.reply(
+          chatId,
+          `🔐 Você não está autorizado a usar comandos, por favor, registre-se antes de prosseguir.\n▸ Utilize *${prefix}registrar*.`,
+          message.id
+        );
+      }
+
       await command.execute({ client, message, args, prefix });
 
       const endTime = Date.now();
       const elapsed = ((endTime - startTime) / 1000).toFixed(2);
-
-      // --- Reação: comando finalizado ---
       await client.react(message.id, '✅');
 
-      // --- Log tempo execução ---
       console.log(
         `[C] Comando "${command.name}" finalizado por ${phoneNumber} em ${elapsed}s`
       );
     } catch (error) {
       console.error(`Erro ao executar comando ${command.name}:`, error);
-
-      // --- Reação: erro na execução ---
       await client.react(message.id, '❌');
-
       await client.reply(
         chatId,
         `❌ Ocorreu um erro ao executar o comando ${command.name}.`,
